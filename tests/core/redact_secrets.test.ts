@@ -24,4 +24,25 @@ describe("redactRecordSecrets", () => {
     expect(out.a).toBe("key ••••");
     expect(out.nested.b).toBe("auch ••••");
   });
+
+  it("wirft bei zirkulaerer Referenz (fail-closed design)", () => {
+    const circular: Record<string, unknown> = { a: "test" };
+    circular.self = circular;
+    expect(() => redactRecordSecrets(circular, [])).toThrow();
+  });
+
+  it("maskiert Schluessel in verschachtelten Message-Arrays (Produktionsform)", () => {
+    const rec = {
+      messages: [
+        { role: "user", content: "Frage mit token sk-abcdefgh12345 drin" },
+        { role: "assistant", content: "Antwort mit sk-abcdefgh12345 auch" },
+      ],
+    };
+    const out = redactRecordSecrets(rec, ["sk-abcdefgh12345"]);
+    expect((out.messages as unknown[]).length).toBe(2);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    expect((out.messages as any)[0].content).toBe("Frage mit token •••• drin");
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    expect((out.messages as any)[1].content).toBe("Antwort mit •••• auch");
+  });
 });

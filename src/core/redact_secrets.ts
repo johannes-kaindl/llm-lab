@@ -28,7 +28,12 @@ export function redactSecrets(text: string, keys: string[]): string {
 
 /** Redigiert ein ganzes Objekt ueber die Serialisierung statt Feld fuer Feld —
  *  eine Liste zu pflegender Felder waere genau die Buchhaltung, die beim naechsten
- *  neuen Feld still veraltet. */
+ *  neuen Feld still veraltet.
+ *
+ *  **Wichtig:** Wirft auf nicht-serialisierbarem Input (zirkulaere Referenzen, etc.).
+ *  Das ist absichtlich und fail-closed: wird nichts geschrieben, statt das Objekt
+ *  ungeredigt zu persistieren. Der Aufrufer (TraceStore.writeNow) faengt den Fehler,
+ *  sodass kein Geheimnis auf der Platte landet. */
 export function redactRecordSecrets<T>(value: T, keys: string[]): T {
   return JSON.parse(redactSecrets(JSON.stringify(value), keys)) as T;
 }
