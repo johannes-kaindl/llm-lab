@@ -23,4 +23,16 @@ export default [
       },
     },
   },
+  {
+    // STORE-SCHULD: minAppVersion ist 1.8.7 (vor der 1.13-Catalyst-Preview, die
+    // getSettingDefinitions() ueberhaupt erst liest) — die deklarative API waere hier
+    // totes Gewicht ohne Wirkung. Abloesung: sobald minAppVersion auf 1.13+ angehoben
+    // wird (eigene Entscheidung, kein Task in Slice 1), zieht LabSettingTab auf
+    // getSettingDefinitions() um, nach dem Zweigleisig-Muster aus vault-rag
+    // (settings.ts: display() faellt auf renderImperative() zurueck).
+    files: ["src/obsidian/settings_tab.ts"],
+    rules: {
+      "obsidianmd/settings-tab/prefer-setting-definitions": "off",
+    },
+  },
 ];
