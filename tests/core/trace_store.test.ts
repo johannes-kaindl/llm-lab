@@ -1,0 +1,106 @@
+import { describe, it, expect } from "vitest";
+import { TraceStore, type TraceSink } from "../../src/core/trace_store";
+import type { TraceRecord } from "../../src/core/types";
+
+function fakeSink() {
+  const written: Array<{ path: string; data: string }> = [];
+  const removed: string[] = [];
+  const sink: TraceSink = {
+    append: async (path, data) => {
+      written.push({ path, data });
+    },
+    list: async () => [],
+    remove: async (path) => {
+      removed.push(path);
+    },
+  };
+  return { sink, written, removed };
+}
+
+const rec: TraceRecord = {
+  id: "t1",
+  ts: "2026-08-22T10:00:00.000Z",
+  plugin: "p",
+  feature: "chat",
+  model: "m",
+  endpointHost: "localhost:1234",
+  messages: [{ role: "user", content: "hallo Bearer abcdefgh1234" }],
+  response: { content: "hi" },
+  latencyMs: 10,
+};
+
+const limits = { keepDays: 7, maxBytes: 1000 };
+
+describe("TraceStore", () => {
+  it("schreibt eine JSON-Zeile in die Datei des Tages", async () => {
+    const { sink, written } = fakeSink();
+    await new TraceStore(sink, "lab", limits, () => "2026-08-22").writeNow(rec);
+    expect(written[0].path).toBe("lab/traces/2026-08-22.jsonl");
+    expect(written[0].data.endsWith("\n")).toBe(true);
+    expect(JSON.parse(written[0].data).id).toBe("t1");
+  });
+
+  it("redigiert Schluessel VOR dem Schreiben — auch im rohen Trace", async () => {
+    const { sink, written } = fakeSink();
+    await new TraceStore(sink, "lab", limits, () => "2026-08-22").writeNow(rec, {
+      secrets: ["abcdefgh1234"],
+    });
+    expect(written[0].data).not.toContain("abcdefgh1234");
+  });
+
+  it("reisst einen Aufruf nie mit, wenn das Schreiben scheitert", async () => {
+    const sink: TraceSink = {
+      append: async () => {
+        throw new Error("Platte voll");
+      },
+      list: async () => [],
+      remove: async () => {},
+    };
+    const store = new TraceStore(sink, "lab", limits, () => "2026-08-22");
+    await expect(store.writeNow(rec)).resolves.toBeUndefined();
+  });
+
+  it("raeumt beim Schreiben ueberfaellige Dateien weg", async () => {
+    const removed: string[] = [];
+    const sink: TraceSink = {
+      append: async () => {},
+      list: async () => [{ name: "2026-08-01.jsonl", bytes: 10 }],
+      remove: async (p) => {
+        removed.push(p);
+      },
+    };
+    await new TraceStore(sink, "lab", limits, () => "2026-08-22").writeNow(rec);
+    expect(removed).toEqual(["lab/traces/2026-08-01.jsonl"]);
+  });
+
+  it("write() gibt sofort zurueck und wartet nie auf die Platte", () => {
+    const { sink } = fakeSink();
+    const store = new TraceStore(sink, "lab", limits, () => "2026-08-22");
+    expect(store.write(rec)).toBeUndefined();
+  });
+
+  it("redactPii:true redigiert eine E-Mail in messages[0].content", async () => {
+    const { sink, written } = fakeSink();
+    const withEmail: TraceRecord = {
+      ...rec,
+      messages: [{ role: "user", content: "Kontakt: jane.doe@example.com bitte antworten" }],
+    };
+    await new TraceStore(sink, "lab", limits, () => "2026-08-22").writeNow(withEmail, {
+      redactPii: true,
+    });
+    const written0 = JSON.parse(written[0].data) as TraceRecord;
+    expect(written0.messages[0].content).toContain("[EMAIL_1]");
+    expect(written0.messages[0].content).not.toContain("jane.doe@example.com");
+  });
+
+  it("ohne redactPii bleibt dieselbe E-Mail unveraendert — Rohtrace bleibt roh per Default", async () => {
+    const { sink, written } = fakeSink();
+    const withEmail: TraceRecord = {
+      ...rec,
+      messages: [{ role: "user", content: "Kontakt: jane.doe@example.com bitte antworten" }],
+    };
+    await new TraceStore(sink, "lab", limits, () => "2026-08-22").writeNow(withEmail);
+    const written0 = JSON.parse(written[0].data) as TraceRecord;
+    expect(written0.messages[0].content).toContain("jane.doe@example.com");
+  });
+});
