@@ -32,17 +32,16 @@ describe("redactRecordSecrets", () => {
   });
 
   it("maskiert Schluessel in verschachtelten Message-Arrays (Produktionsform)", () => {
-    const rec = {
+    type MessageArray = { messages: Array<{ role: string; content: string }> };
+    const rec: MessageArray = {
       messages: [
         { role: "user", content: "Frage mit token sk-abcdefgh12345 drin" },
         { role: "assistant", content: "Antwort mit sk-abcdefgh12345 auch" },
       ],
     };
     const out = redactRecordSecrets(rec, ["sk-abcdefgh12345"]);
-    expect((out.messages as unknown[]).length).toBe(2);
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    expect((out.messages as any)[0].content).toBe("Frage mit token •••• drin");
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    expect((out.messages as any)[1].content).toBe("Antwort mit •••• auch");
+    expect(out.messages.length).toBe(2);
+    expect(out.messages[0].content).toBe("Frage mit token •••• drin");
+    expect(out.messages[1].content).toBe("Antwort mit •••• auch");
   });
 });
