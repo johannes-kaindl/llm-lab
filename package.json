@@ -1,7 +1,7 @@
 {
   "name": "llm-lab",
   "version": "0.1.0",
-  "description": "Record every local LLM call your plugins make, rate the answers, and export the good ones.",
+  "description": "Record local LLM calls your plugins make, with API keys and PII masked, stored only in your vault.",
   "type": "module",
   "scripts": {
     "dev": "node esbuild.config.mjs",

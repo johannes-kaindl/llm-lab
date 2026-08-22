@@ -73,10 +73,17 @@ Nicht verhandelbare Eigenschaften:
 - **Der REGISTRY-Kandidat `TraceStore`** (`neurovim-standalone`) wird **nicht** eingelöst: 23
   Zeilen ohne Rotation, ohne Schema, ohne Redaktion. Was hier entsteht, ist reicher und bleibt
   zunächst im Lab, nicht im Kit. Der Kandidaten-Eintrag bleibt offen.
-- **Der i18n-Modul-Ebenen-Wächter** (`tests/i18n/keys.test.ts`) ist gegenüber der Fassung in
-  `vault-rag` **verbreitert** (fängt zusätzlich `let`/`var`, Klassenfelder und
-  `export default`), s. eigener REGISTRY-Eintrag — Rückportier-Kandidat für `vault-rag`, das
-  weiterhin die engere Originalfassung fährt.
+- **Der i18n-Modul-Ebenen-Wächter** (`tests/i18n/keys.test.ts`) unterscheidet sich von der
+  Fassung in `vault-rag/tests/i18n/keys.test.ts` in genau einem Punkt: `vault-rag`s
+  `isFunctionOpener` behandelt `class Foo {` als Funktions-/Methodenkopf und stellt damit den
+  **gesamten** Klassenkörper zurück — ein Klassenfeld direkt im Körper (`label = t("x")`, ohne
+  `const`/`let`/`var`) rutscht dort durch. Diese Fassung erkennt Klassenkörper separat von
+  Methodenkörpern und fängt das Feld. **Keine anderen Unterschiede:** `vault-rag`s Wächter
+  trackt bereits Klammer-Tiefe statt nur `const NAME = t(...)` zu matchen und erkennt
+  `let`/`var`-Deklarationen und `export default { … t(...) }` auf Modul-Ebene genauso wie
+  dieser hier (durch Ausführung verifiziert, Review 2026-08-22 — eine frühere Fassung dieser
+  Zeile behauptete das Gegenteil und war falsch). Rückportier-Kandidat für `vault-rag` ist
+  daher nur die Klassenfeld-Erkennung, s. eigener REGISTRY-Eintrag.
 
 ## Datenmodell — zwei Schichten, eine Bewegung
 

@@ -1,0 +1,4 @@
+/* No custom styles yet — Slice 1 has no CSS classes of its own (settings tab uses only
+   native Obsidian `Setting` rows and `setIcon` for the status-bar icon). This file exists
+   because `npm run deploy` and `.github/workflows/release.yml` expect a `styles.css` asset;
+   it stays intentionally empty until a later slice needs real styling. */

@@ -3,7 +3,7 @@
   "name": "LLM Lab",
   "version": "0.1.0",
   "minAppVersion": "1.8.7",
-  "description": "Record every local LLM call your plugins make, rate the answers, and export the good ones.",
+  "description": "Record local LLM calls your plugins make, with API keys and PII masked, stored only in your vault.",
   "author": "Johannes Kaindl",
   "authorUrl": "https://github.com/johannes-kaindl",
   "isDesktopOnly": false
