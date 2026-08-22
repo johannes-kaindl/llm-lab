@@ -108,9 +108,17 @@ Bewertungs-Fähigkeit baut, findet hier die Entscheidung, aber keinen Anfang zum
 
 Zwei Maskierungsläufe, **niemals in der anderen Reihenfolge**:
 
-1. **Schlüssel-Maskierung (`redactRecordSecrets`) läuft IMMER, auf jeder Schicht, ohne
-   Einstellung.** API-Schlüssel und Bearer-Echos sind kein Inhalt und kein Zweck der
-   Erhebung — sie gehören in keine der beiden Schichten, roh oder redigiert.
+1. **Schlüssel-Maskierung (`redactRecordSecrets`) LÄUFT IMMER, ohne Einstellung — aber
+   der Mechanismus läuft immer, das Ergebnis ist trotzdem meist wirkungslos.** Der
+   exakte-String-Ersetzungslauf über die Schlüsselliste tut in Slice 1 nichts: `main.ts`
+   verdrahtet `secrets: () => []` (eine permanent leere Liste), und `LabLogInput` hat KEIN
+   Feld, über das ein aufrufendes Plugin einen Endpunkt-Schlüssel überhaupt übergeben könnte.
+   Real wirksam ist nur das fest einprogrammierte `BEARER`-Muster, das einen Token trifft, der
+   wörtlich in `Bearer <token>`-Form im aufgezeichneten Text auftaucht. **Das ist eine echte
+   Lücke in Slice 1, keine Design-Entscheidung** — s. „Bekannte Lücken in Slice 1" unten.
+   API-Schlüssel und Bearer-Echos sind kein Inhalt und kein Zweck der Erhebung — sie gehören
+   in keine der beiden Schichten, roh oder redigiert; das bleibt die Begründung dafür, WARUM
+   diese Maskierung unbedingt laufen soll, auch wenn sie es in Slice 1 nur teilweise tut.
 2. **PII-Redaktion (`redactPii`) läuft NUR über die Textfelder** (`messages[].content`,
    `response.content`, `response.reasoning`, `error`) und **nur wenn `redactPiiInTrace`
    gesetzt ist** (Default: aus). PII *ist* der Inhalt und damit der Zweck der Erhebung — das
@@ -148,6 +156,30 @@ Status wird ausschließlich über die Statusleiste (Icon + Text, nie Farbe allei
 und einen Command (`toggle-pause`) sichtbar. Wer eine UI für Slice 2 baut, prüft zuerst
 `../UI-STANDARD.md`.
 
+## Bekannte Lücken in Slice 1
+
+**Endpunkt-API-Schlüssel werden NICHT durch exakte Übereinstimmung maskiert — eine echte
+Lücke, keine Design-Entscheidung.** Konkret, gegen den Code verifiziert (Review 2026-08-23):
+
+- `main.ts` verdrahtet `createLlmLabApi` mit `secrets: () => []` — einer **permanent leeren**
+  Liste. Das ist die einzige Stelle, an der die API überhaupt konstruiert wird.
+- `LabLogInput` (`plugin_api.ts`) hat **kein Feld**, über das ein aufrufendes Nachbarplugin
+  seinen eigenen Endpunkt-Schlüssel an `log()` durchreichen könnte.
+- Damit läuft `redactRecordSecrets(record, [])` bei jedem Schreibvorgang — der Mechanismus
+  läuft unbedingt, wie dokumentiert —, aber seine exakte-String-Ersetzungsschleife hat nichts
+  zum Vergleichen und tut nichts. **Mechanismus läuft unbedingt ≠ Ergebnis ist garantiert.**
+  Real wirksam bleibt nur das fest einprogrammierte `BEARER`-Muster (`redact_secrets.ts`), das
+  einen Token trifft, der wörtlich in `Bearer <token>`-Form im aufgezeichneten Text auftaucht
+  — z.B. weil ein Konsument ihn versehentlich in eine Fehlermeldung oder einen Header-Echo im
+  `content`-Feld einbettet.
+
+**Was das schließen würde, bewusst NICHT in dieser Session angegangen:** ein `secrets`- oder
+`apiKeys`-Feld auf `LabLogInput`, das ein Konsument befüllt, plus die entsprechende
+Verdrahtung in `main.ts` und in jedem Konsumenten (aktuell `vault-rag`). Das ist eine Änderung
+am öffentlichen API-Vertrag (Task 8) und an bereits abgenommener Konsumenten-Verdrahtung
+(Task 10) — ein Vertrags-Umbau, kein Dokumentationsfix, und deshalb bewusst als Folge-Arbeit
+für die nächste Slice vorgemerkt statt hier nachträglich hineingepatcht.
+
 ## Modul-Layout (`src/`)
 
 ```
@@ -156,7 +188,9 @@ core/
   record.ts         TraceInput → TraceRecord: hashPrompt (FNV-1a, kein Krypto-Anspruch — nur
                     unterscheidbar, nicht geheim) · hostOf (Host+Port aus einer URL, faellt
                     auf "unbekannt" zurueck statt zu werfen) · buildTraceRecord.
-  redact_secrets.ts redactSecrets/redactRecordSecrets — Schlüssel-Maskierung, läuft IMMER.
+  redact_secrets.ts redactSecrets/redactRecordSecrets — Schlüssel-Maskierung, Lauf ist
+                    unbedingt, aber in Slice 1 mit leerer Schlüsselliste verdrahtet (nur
+                    das BEARER-Muster wirkt real) — s. „Bekannte Lücken in Slice 1".
   redact_pii.ts     redactPii — Muster-Maskierung mit record-weiten Platzhaltern, läuft nur
                     wenn redactPiiInTrace gesetzt ist (für den rohen Trace).
   rotation.ts       planRotation — reine Entscheidung, welche Trace-Dateien weg müssen

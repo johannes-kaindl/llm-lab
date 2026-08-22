@@ -20,15 +20,18 @@ All notable changes to this project are documented here. The format follows
   configurable size, today's file never rotated away). A verdict/rating layer
   (`dataset.jsonl`) is designed into the record shape for a later slice; Slice 1 ships the
   trace side only — there is no rating UI yet.
-- **Redaction runs before anything touches disk, in a fixed order.** API keys and Bearer
-  tokens are masked on every write, unconditionally, on both the raw trace and (once
-  built) the dataset. PII patterns (e-mail, IBAN, phone numbers, credentials in URLs) are
-  masked with placeholders that stay numbered and consistent across every text field of one
-  record — the raw trace is redacted only if the stricter "redact PII in trace" setting is
-  turned on (default off, because debugging needs to see what was actually sent). Key
-  masking always runs first, PII masking second — reversing the order lets a PII pattern
-  fragment an API key before the exact-match key search ever sees it, leaving unmasked
-  fragments on disk.
+- **Redaction runs before anything touches disk, in a fixed order.** Bearer tokens that
+  appear verbatim in recorded text are masked on every write, unconditionally — that pattern
+  match is real. Endpoint API keys are **not** currently masked by exact match: the
+  key-masking function is wired with a permanently empty key list, and there is no field on
+  the logging API through which a calling plugin can supply one — a known Slice 1 gap, not a
+  design choice (see `AGENTS.md` § "Known gaps in Slice 1"). PII patterns (e-mail, IBAN, phone
+  numbers, credentials in URLs) are masked with placeholders that stay numbered and consistent
+  across every text field of one record — off by default, only applied to the raw trace if
+  the stricter "redact PII in trace" setting is turned on (debugging needs to see what was
+  actually sent). Where both passes apply, key masking runs first and PII masking second —
+  reversing the order would let a PII pattern fragment an API key before the exact-match key
+  search ever sees it, leaving unmasked fragments on disk.
 - **Fail-closed telemetry.** A write that cannot be serialized, or a disk error, is caught
   and logged to the console rather than crashing the caller — the call being logged has
   already completed upstream by the time it is written.

@@ -1,7 +1,7 @@
 {
   "name": "llm-lab",
   "version": "0.1.0",
-  "description": "Record the local LLM calls your plugins make — API keys masked, stored only inside your vault.",
+  "description": "Record the local LLM calls your plugins make — stored only inside your vault.",
   "type": "module",
   "scripts": {
     "dev": "node esbuild.config.mjs",

@@ -28,13 +28,17 @@ LLM Lab is local-first by design, which is also its core security property:
   server, and LLM Lab has no telemetry of its own. Whether that folder is synced or backed
   up is entirely a function of your own vault sync/backup configuration — LLM Lab does not
   change that behavior.
-- **Two redaction passes run before anything is written**, in a fixed order: API keys and
-  Bearer tokens are masked first and unconditionally on every write; a second, optional pass
-  masks PII patterns (e-mail addresses, IBANs, phone numbers, credentials embedded in URLs)
-  with numbered placeholders that stay consistent across a whole record. **The masking finds
-  patterns, not meaning** — it does not find names, physical addresses, medical or other
-  diagnoses, or relationships between people. Treat a recorded trace as being exactly as
-  confidential as the notes and prompts that produced it.
+- **Bearer tokens appearing verbatim in recorded text are masked on every write** — that
+  pattern match is real and unconditional. **Endpoint API keys are not currently masked by
+  exact match, and this is a known gap in Slice 1, not a design choice:** the key-masking
+  function is wired with a permanently empty key list, and the logging API gives a calling
+  sibling plugin no field to supply its own key through (see `AGENTS.md` § "Known gaps in
+  Slice 1"). A second, optional pass masks PII patterns (e-mail addresses, IBANs, phone
+  numbers, credentials embedded in URLs) with numbered placeholders that stay consistent
+  across a whole record — off by default, only active when "redact PII in trace" is turned
+  on. **The masking finds patterns, not meaning** — it does not find names, physical
+  addresses, medical or other diagnoses, or relationships between people. Treat a recorded
+  trace as being exactly as confidential as the notes and prompts that produced it.
 - **Uninstalling the plugin is the off switch.** There is no separate account, license
   server, or background process to disable — removing LLM Lab from a vault stops all
   recording immediately and permanently for that vault.

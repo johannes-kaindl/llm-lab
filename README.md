@@ -49,9 +49,14 @@ your own vault's configuration, not LLM Lab's.** If your sync setup mirrors
 already sends everything else. LLM Lab does not add a sync mechanism and does not exempt
 itself from your existing one either way.
 
-Before anything is written, two masking passes run in a fixed order — API keys and Bearer
-tokens first, unconditionally, on every write; then, only if the stricter "redact PII in
-trace" setting is turned on (default: off), a second pass over the message and response text:
+Before anything is written, a masking pass looks for **Bearer tokens that appear verbatim
+in recorded text** (`Bearer <token>`) and replaces them — that pattern is real and always
+runs. **Endpoint API keys are not currently masked by exact match, and this is a known gap
+in Slice 1, not a design choice:** the key-masking function is wired with a permanently empty
+key list (`main.ts`), and `plugin.api.log()` gives a calling sibling plugin no field to supply
+its own key through. See [`AGENTS.md`](AGENTS.md) § "Known gaps in Slice 1" for what would
+close it. Separately — and only if the stricter "redact PII in trace" setting is turned on
+(default: off) — a second pass runs over the message and response text:
 
 **The masking finds patterns. It is deliberately not told to find meaning.** Concretely, it
 catches:
