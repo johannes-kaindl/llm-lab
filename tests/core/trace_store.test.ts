@@ -29,7 +29,7 @@ const rec: TraceRecord = {
   latencyMs: 10,
 };
 
-const limits = { keepDays: 7, maxBytes: 1000 };
+const limits = () => ({ keepDays: 7, maxBytes: 1000 });
 
 describe("TraceStore", () => {
   it("schreibt eine JSON-Zeile in die Datei des Tages", async () => {
@@ -119,5 +119,53 @@ describe("TraceStore", () => {
     expect(content).not.toContain("abcd");
     expect(content).not.toContain("efgh");
     expect(content).toContain("••••");
+  });
+
+  it("eine Limits-Aenderung zwischen zwei Schreibvorgaengen greift beim zweiten", async () => {
+    const removed: string[] = [];
+    const sink: TraceSink = {
+      append: async () => {},
+      list: async () => [{ name: "2026-08-01.jsonl", bytes: 10 }],
+      remove: async (p) => {
+        removed.push(p);
+      },
+    };
+    let current = { keepDays: 30, maxBytes: 1000 };
+    const store = new TraceStore(sink, "lab", () => current, () => "2026-08-22");
+
+    await store.writeNow(rec);
+    expect(removed).toEqual([]); // 21 Tage alt, keepDays=30 -> nicht faellig
+
+    current = { keepDays: 7, maxBytes: 1000 };
+    await store.writeNow(rec);
+    expect(removed).toEqual(["lab/traces/2026-08-01.jsonl"]); // jetzt faellig
+  });
+
+  it("rotate() raeumt ueberfaellige Dateien weg, auch ohne einen Schreibvorgang", async () => {
+    const removed: string[] = [];
+    const sink: TraceSink = {
+      append: async () => {
+        throw new Error("write() darf hier nie aufgerufen werden");
+      },
+      list: async () => [{ name: "2026-08-01.jsonl", bytes: 10 }],
+      remove: async (p) => {
+        removed.push(p);
+      },
+    };
+    const store = new TraceStore(sink, "lab", limits, () => "2026-08-22");
+    await store.rotate();
+    expect(removed).toEqual(["lab/traces/2026-08-01.jsonl"]);
+  });
+
+  it("rotate() reisst nichts mit, wenn die Rotation selbst scheitert", async () => {
+    const sink: TraceSink = {
+      append: async () => {},
+      list: async () => {
+        throw new Error("Verzeichnis nicht lesbar");
+      },
+      remove: async () => {},
+    };
+    const store = new TraceStore(sink, "lab", limits, () => "2026-08-22");
+    await expect(store.rotate()).resolves.toBeUndefined();
   });
 });

@@ -48,14 +48,23 @@ export function createLlmLabApi(deps: ApiDeps): LlmLabApi {
     },
 
     log(input: LabLogInput): string {
+      // Die Zusage ist "log() wirft nie" — ein Konsument ruft synchron mitten in seinem
+      // eigenen Streaming-Pfad auf und darf dabei nie reissen, auch nicht bei einem
+      // fehlerhaften Input (`buildTraceRecord` liest z.B. `input.messages.find(...)`
+      // unbewacht). Die Garantie gehoert der Seite, die sie verspricht, nicht jedem
+      // Aufrufer einzeln.
       const id = deps.newId();
-      if (!shouldLog(input.feature, deps.paused(), deps.settings())) return id;
-      const settings = deps.settings();
-      deps.store().write(buildTraceRecord({ ...input, id, ts: deps.now() }), {
-        secrets: deps.secrets(),
-        redactPii: settings.redactPiiInTrace,
-        piiTerms: settings.customPiiTerms,
-      });
+      try {
+        if (!shouldLog(input.feature, deps.paused(), deps.settings())) return id;
+        const settings = deps.settings();
+        deps.store().write(buildTraceRecord({ ...input, id, ts: deps.now() }), {
+          secrets: deps.secrets(),
+          redactPii: settings.redactPiiInTrace,
+          piiTerms: settings.customPiiTerms,
+        });
+      } catch (e) {
+        console.warn("LLM Lab: log() mit fehlerhaftem Input, nichts geschrieben", e);
+      }
       return id;
     },
   };

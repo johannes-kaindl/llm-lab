@@ -25,7 +25,7 @@ All notable changes to this project are documented here. The format follows
   match is real. Endpoint API keys are **not** currently masked by exact match: the
   key-masking function is wired with a permanently empty key list, and there is no field on
   the logging API through which a calling plugin can supply one — a known Slice 1 gap, not a
-  design choice (see `AGENTS.md` § "Known gaps in Slice 1"). PII patterns (e-mail, IBAN, phone
+  design choice (see `AGENTS.md` § "Bekannte Lücken in Slice 1"). PII patterns (e-mail, IBAN, phone
   numbers, credentials in URLs) are masked with placeholders that stay numbered and consistent
   across every text field of one record — off by default, only applied to the raw trace if
   the stricter "redact PII in trace" setting is turned on (debugging needs to see what was
@@ -36,9 +36,11 @@ All notable changes to this project are documented here. The format follows
   and logged to the console rather than crashing the caller — the call being logged has
   already completed upstream by the time it is written.
 - **Rotation and exclusion settings**, a session-only pause switch (status bar icon + text,
-  resets on restart so nobody stays silently paused for weeks), a folder/feature exclusion
-  list evaluated before a record is even built, and a settings-tab statement of exactly
-  where the data lives and what the masking does and does not catch.
+  resets on restart so nobody stays silently paused for weeks), a feature exclusion list
+  evaluated before a record is even built (folder-level exclusion is not implemented in
+  Slice 1 — `log()` never receives a path, see `AGENTS.md` § "Bekannte Lücken in Slice 1"),
+  and a settings-tab statement of exactly where the data lives and what the masking does
+  and does not catch.
 - **No UI beyond the settings tab.** Slice 1 deliberately ships no rating buttons, no
   dataset browser, no export — those depend on a dataset that does not exist yet in this
   slice.

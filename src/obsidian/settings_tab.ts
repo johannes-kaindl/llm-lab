@@ -67,6 +67,20 @@ export class LabSettingTab extends PluginSettingTab {
           }),
       );
 
+    // Muss VOR customPiiTerms gezeichnet werden: es ist der einzige Aktivator dieses
+    // Felds (WriteOptions.piiTerms wirkt nur mit redactPii:true) und ist per Default aus —
+    // sonst tippt jemand einen Klientennamen ins Feld darunter und bekommt weder Maskierung
+    // noch einen Hinweis, dass gerade nichts maskiert wird (falsches Sicherheitsgefuehl).
+    new Setting(containerEl)
+      .setName(t("settings.redactTrace.name"))
+      .setDesc(t("settings.redactTrace.desc"))
+      .addToggle((toggle) =>
+        toggle.setValue(this.plugin.settings.redactPiiInTrace).onChange(async (value) => {
+          this.plugin.settings.redactPiiInTrace = value;
+          await this.plugin.saveSettings();
+        }),
+      );
+
     new Setting(containerEl)
       .setName(t("settings.customPii.name"))
       .setDesc(t("settings.customPii.desc"))
@@ -77,16 +91,6 @@ export class LabSettingTab extends PluginSettingTab {
             this.plugin.settings.customPiiTerms = parseLines(value);
             await this.plugin.saveSettings();
           }),
-      );
-
-    new Setting(containerEl)
-      .setName(t("settings.redactTrace.name"))
-      .setDesc(t("settings.redactTrace.desc"))
-      .addToggle((toggle) =>
-        toggle.setValue(this.plugin.settings.redactPiiInTrace).onChange(async (value) => {
-          this.plugin.settings.redactPiiInTrace = value;
-          await this.plugin.saveSettings();
-        }),
       );
 
     // Inhaltlich verbindlich: sagt, WO die Daten liegen (im Vault, Sync/Backup ist

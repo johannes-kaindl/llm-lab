@@ -54,7 +54,7 @@ in recorded text** (`Bearer <token>`) and replaces them — that pattern is real
 runs. **Endpoint API keys are not currently masked by exact match, and this is a known gap
 in Slice 1, not a design choice:** the key-masking function is wired with a permanently empty
 key list (`main.ts`), and `plugin.api.log()` gives a calling sibling plugin no field to supply
-its own key through. See [`AGENTS.md`](AGENTS.md) § "Known gaps in Slice 1" for what would
+its own key through. See [`AGENTS.md`](AGENTS.md) § "Bekannte Lücken in Slice 1" for what would
 close it. Separately — and only if the stricter "redact PII in trace" setting is turned on
 (default: off) — a second pass runs over the message and response text:
 
@@ -100,7 +100,7 @@ npm install
 npm run build   # produces main.js
 ```
 
-Copy `main.js` and `manifest.json` into `<vault>/.obsidian/plugins/llm-lab/` and enable the
+Copy `main.js`, `manifest.json` and `styles.css` into `<vault>/.obsidian/plugins/llm-lab/` and enable the
 plugin under **Settings → Community plugins**. A community-plugin listing and prebuilt
 releases are not available yet — this is a pre-release, source-only plugin.
 
@@ -115,7 +115,7 @@ releases are not available yet — this is a pre-release, source-only plugin.
 | **Custom PII terms** | *(empty)* | One term per line, in addition to the built-in e-mail/IBAN/phone/URL-credential patterns — masked the same way, with the same numbered-placeholder consistency. |
 | **Redact PII in trace** | off | Applies the PII masking pass to the raw trace as well, not only to a future rated dataset. Off by default because debugging a bad answer needs to see what was actually sent. |
 
-A status-bar item and the **"Toggle recording pause"** command let you pause and resume for
+A status-bar item and the **"LLM Lab: pause or resume recording"** command let you pause and resume for
 the current session without touching settings — the pause is intentionally not persisted, so
 nobody stays silently paused for weeks after a "not right now."
 

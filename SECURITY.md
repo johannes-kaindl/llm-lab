@@ -32,7 +32,7 @@ LLM Lab is local-first by design, which is also its core security property:
   pattern match is real and unconditional. **Endpoint API keys are not currently masked by
   exact match, and this is a known gap in Slice 1, not a design choice:** the key-masking
   function is wired with a permanently empty key list, and the logging API gives a calling
-  sibling plugin no field to supply its own key through (see `AGENTS.md` § "Known gaps in
+  sibling plugin no field to supply its own key through (see `AGENTS.md` § "Bekannte Lücken in
   Slice 1"). A second, optional pass masks PII patterns (e-mail addresses, IBANs, phone
   numbers, credentials embedded in URLs) with numbered placeholders that stay consistent
   across a whole record — off by default, only active when "redact PII in trace" is turned

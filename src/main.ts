@@ -25,9 +25,15 @@ export default class LlmLabPlugin extends Plugin {
     this.store = new TraceStore(
       vaultSink(this.app.vault.adapter),
       base,
-      { keepDays: this.settings.keepDays, maxBytes: this.settings.maxBytes },
+      // Getter statt Snapshot: eine Aenderung an keepDays/maxBytes in den Einstellungen
+      // greift damit sofort beim naechsten Rotationslauf statt erst nach einem Neustart.
+      () => ({ keepDays: this.settings.keepDays, maxBytes: this.settings.maxBytes }),
       () => new Date().toISOString().slice(0, 10),
     );
+    // Ein Rotationslauf beim Start, unabhaengig von jedem Schreibvorgang — sonst raeumt
+    // ein pausiertes/deaktiviertes Plugin (oder eines, das schlicht eine Weile nicht
+    // benutzt wird) nie etwas weg, egal wie kurz "Traces aufbewahren (Tage)" gesetzt ist.
+    await this.store.rotate();
 
     this.api = createLlmLabApi({
       store: () => this.store,

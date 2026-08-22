@@ -83,4 +83,19 @@ describe("LlmLabApi", () => {
       piiTerms: [],
     });
   });
+
+  it("wirft nie — auch bei fehlerhaftem Input liefert log() eine id", () => {
+    // buildTraceRecord() liest input.messages.find(...) unbewacht; ein Konsument, der
+    // hier etwas Falsches uebergibt, darf trotzdem nie in seinem eigenen Streaming-Pfad
+    // reissen. Der Cast ueber unknown ist bewusst: ein echter Fremdplugin-Aufruf kommt
+    // ohne Typprüfung durch die Plugin-Grenze.
+    const malformed = { ...input, messages: "not-an-array" } as unknown as typeof input;
+    const { api, write } = makeApi();
+    let id: string | undefined;
+    expect(() => {
+      id = api.log(malformed);
+    }).not.toThrow();
+    expect(typeof id).toBe("string");
+    expect(write).not.toHaveBeenCalled();
+  });
 });

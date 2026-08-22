@@ -180,6 +180,17 @@ am öffentlichen API-Vertrag (Task 8) und an bereits abgenommener Konsumenten-Ve
 (Task 10) — ein Vertrags-Umbau, kein Dokumentationsfix, und deshalb bewusst als Folge-Arbeit
 für die nächste Slice vorgemerkt statt hier nachträglich hineingepatcht.
 
+**Zweite echte Lücke, derselben Bauart: es gibt KEINE Ordner-/Pfad-Ausschlussliste.**
+`shouldLog(feature, paused, settings)` (`settings.ts`) prüft ausschließlich `feature` gegen
+`excludedFeatures` — es gibt keinen zweiten Parameter und keinen Vergleich gegen einen Pfad.
+`LabLogInput`/`TraceInput` (`plugin_api.ts`/`record.ts`) haben kein Pfad-Feld, und `log()`
+reicht folglich nie einen Pfad an `shouldLog` oder `buildTraceRecord` durch — ein Aufruf, dessen
+RAG-Kontext aus einer als privat markierten Notiz stammt, wird also genauso protokolliert wie
+jeder andere. Frühere Fassungen des CHANGELOGs behaupteten das Gegenteil („folder/feature
+exclusion list") — das war unzutreffend, korrigiert 2026-08-23. Schließen braucht dieselbe Art
+Vertrags-Umbau wie die Schlüssel-Lücke oben (ein Pfad-Feld auf `LabLogInput`, Verdrahtung in
+jedem Konsumenten) und ist aus demselben Grund nicht Teil dieser Session.
+
 ## Modul-Layout (`src/`)
 
 ```
@@ -266,11 +277,12 @@ npm run version-bump / preflight / release   # delegieren ans zentrale ../tools/
   vorgang korrekt ist (kein Ordner, keine Dateien zum Rotieren).
 - **`data.json`** ist die von Obsidian persistierte Plugin-Konfig (`saveData`) — git-ignored.
 - **`main.js`** ist Build-Artefakt (gitignored) — nie von Hand editieren.
-- **Kein `styles.css`** — Slice 1 hat keine eigene CSS-Klasse (nur native `Setting`-Zeilen und
-  ein Statusleisten-Icon über `setIcon`). Falls eine spätere Slice eigenes UI-CSS braucht, muss
-  die Datei neu angelegt UND in `esbuild.config.mjs`/`deploy`/`release.yml` als Asset ergänzt
-  werden — aktuell referenzieren `npm run deploy` und `.github/workflows/release.yml` sie
-  bereits (kanonische Vorlage), obwohl sie noch nicht existiert.
+- **`styles.css` existiert, ist absichtlich leer.** Slice 1 hat keine eigene CSS-Klasse (nur
+  native `Setting`-Zeilen und ein Statusleisten-Icon über `setIcon`) — die Datei liegt trotzdem
+  im Repo-Root und ist getrackt, mit einem Kommentar, der genau das erklärt. Grund: `npm run
+  deploy` und `.github/workflows/release.yml` behandeln `styles.css` als Pflicht-Asset
+  (kanonische Vorlage); ohne die Datei würde beides brechen. Braucht eine spätere Slice
+  eigenes UI-CSS, wird diese Datei befüllt — nicht neu angelegt.
 
 ## Dach-Kontext (obsidian-plugins)
 

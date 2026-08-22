@@ -28,7 +28,10 @@ export class TraceStore {
   constructor(
     private readonly sink: TraceSink,
     private readonly baseDir: string,
-    private readonly limits: RotationLimits,
+    /** Getter statt Wert: eine Aenderung an keepDays/maxBytes in den Einstellungen soll den
+     *  naechsten Rotationslauf treffen, nicht erst einen Neustart. Passt zum Muster der
+     *  anderen injizierten Abhaengigkeiten (`today` ist ebenfalls ein Getter). */
+    private readonly limits: () => RotationLimits,
     private readonly today: () => string,
   ) {}
 
@@ -66,10 +69,19 @@ export class TraceStore {
     }
   }
 
-  private async rotate(): Promise<void> {
-    const files = await this.sink.list(this.dir());
-    for (const name of planRotation(files, this.limits, this.today())) {
-      await this.sink.remove(`${this.dir()}/${name}`);
+  /** Oeffentlich, damit ein Aufrufer (main.ts:onload) eine Rotation ausloesen kann, ohne
+   *  zugleich etwas zu schreiben — sonst raeumt ein pausiertes oder ungenutztes Plugin
+   *  nie etwas weg, egal wie kurz `keepDays` gesetzt ist. Fehler werden geschluckt, mit
+   *  derselben Zusage wie bei `writeNow`: eine gescheiterte Rotation darf einen Aufrufer
+   *  nie zu Fall bringen. */
+  async rotate(): Promise<void> {
+    try {
+      const files = await this.sink.list(this.dir());
+      for (const name of planRotation(files, this.limits(), this.today())) {
+        await this.sink.remove(`${this.dir()}/${name}`);
+      }
+    } catch (e) {
+      console.warn("LLM Lab: Rotation fehlgeschlagen", e);
     }
   }
 }
