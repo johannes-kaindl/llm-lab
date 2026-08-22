@@ -103,4 +103,21 @@ describe("TraceStore", () => {
     const written0 = JSON.parse(written[0].data) as TraceRecord;
     expect(written0.messages[0].content).toContain("jane.doe@example.com");
   });
+
+  it("Schluessel-Maskierung laeuft vor PII — ein Schluessel darf die PII-Musterphase ueberleben", async () => {
+    const { sink, written } = fakeSink();
+    const key = "abcd1234567890efgh";
+    const withKey: TraceRecord = {
+      ...rec,
+      messages: [{ role: "user", content: `my api key is ${key} please use it` }],
+    };
+    await new TraceStore(sink, "lab", limits, () => "2026-08-22").writeNow(withKey, {
+      secrets: [key],
+      redactPii: true,
+    });
+    const content = (JSON.parse(written[0].data) as TraceRecord).messages[0].content;
+    expect(content).not.toContain("abcd");
+    expect(content).not.toContain("efgh");
+    expect(content).toContain("••••");
+  });
 });

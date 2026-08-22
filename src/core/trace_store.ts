@@ -44,13 +44,21 @@ export class TraceStore {
 
   /** Dieselbe Arbeit, awaitbar — ausschliesslich fuer Tests.
    *
-   *  Redaktionsreihenfolge: erst PII (nur Textfelder, strengere Politik, optional), dann
-   *  Schluessel-Maskierung ueber den gesamten Record (laeuft immer). Die Schluessel-Zusage
-   *  ist die haertere und bekommt deshalb das letzte Wort. */
+   *  Redaktionsreihenfolge: erst Schluessel-Maskierung (exakter String-Vergleich,
+   *  laeuft immer), dann PII-Redaktion (Muster-Ersetzung ueber Textfelder, optional).
+   *  Nicht "die haertere Zusage zuerst" — sondern: **wer exakt matcht, muss vor wem
+   *  laeuft, der Muster umschreibt.** `redactPii`s PHONE-Muster ist ein blanker
+   *  Ziffernlauf und trifft dabei auch auf die Ziffernfolge INNERHALB eines API-Schluessels;
+   *  laeuft PII zuerst, zerreisst es den Schluessel in Fragmente, und die anschliessende
+   *  exakte Suche von `redactRecordSecrets` findet das Original-Literal nicht mehr — die
+   *  Fragmente landen ungeschwaerzt auf der Platte. Umgekehrt ist unbedenklich: eine
+   *  Muster-Ersetzung zerreisst nichts, was noch geschwaerzt werden muesste, denn nichts,
+   *  was die Schluessel-Maskierung erzeugt (`••••`, `Bearer ••••`), matcht EMAIL/IBAN/
+   *  PHONE/URLCRED. */
   async writeNow(record: TraceRecord, opts?: WriteOptions): Promise<void> {
     try {
-      const afterPii = opts?.redactPii ? redactPii(record, opts.piiTerms ?? []) : record;
-      const safe = redactRecordSecrets(afterPii, opts?.secrets ?? []);
+      const afterSecrets = redactRecordSecrets(record, opts?.secrets ?? []);
+      const safe = opts?.redactPii ? redactPii(afterSecrets, opts.piiTerms ?? []) : afterSecrets;
       await this.sink.append(`${this.dir()}/${this.today()}.jsonl`, JSON.stringify(safe) + "\n");
       await this.rotate();
     } catch (e) {
