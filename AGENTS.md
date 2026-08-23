@@ -135,6 +135,15 @@ Muster-Ersetzung zerreißt nichts, was noch geschwärzt werden müsste — nicht
 Schlüssel-Maskierung erzeugt (`••••`, `Bearer ••••`), matcht EMAIL/IBAN/PHONE/URLCRED. Die
 Regel dahinter: **wer exakt matcht, muss laufen, bevor wer Muster umschreibt.**
 
+**Was die erste Abnahme gegen einen echten Konsumenten über das Feldset ergeben hat:**
+`systemPromptHash` trennt auf vault-rags Chat-Pfad **keine Prompt-Fassungen, sondern Aufrufe** —
+der Retrieval-Kontext steckt dort in der System-Nachricht, also ändert sich der Hash mit jeder
+Frage (gemessen 2026-08-23: zwei Fragen an denselben unveränderten Prompt ergaben zwei Hashes).
+Der Code tut, was `record.ts` sagt; die dokumentierte *Absicht* („zwei Prompt-Fassungen
+unterscheidbar machen") trägt auf diesem Pfad nicht. Wer die Bewertungs-Schicht baut, braucht
+einen Hash über den stabilen Prompt-Anteil oder ein eigenes Feld — Details und Messwerte in
+`docs/SMOKE.md` § Konsumenten-Abnahme.
+
 `TraceStore.writeNow` (`src/core/trace_store.ts`) ist die einzige Stelle, an der beide Läufe
 zusammengeführt werden — genau in dieser Reihenfolge, mit einem Kommentar-Block, der sie
 begründet, damit ein künftiger Refactor sie nicht aus Versehen vertauscht.

@@ -74,3 +74,37 @@ ignoriert `excludedFeatures` → Punkt 14 rot; PII-Schalter unter das Begriffe-F
 Punkt 19 rot. **Punkt 10 blieb dabei grün** — `adapter.stat()` liefert weiterhin eine Größe,
 nur liest sie niemand mehr. Die beiden Punkte messen also tatsächlich Verschiedenes; das ist
 der Grund, warum die Wirkung (Punkt 11) zusätzlich zur Zahl (Punkt 10) geprüft wird.
+
+## Konsumenten-Abnahme (Handover-Schritte 6, 8, 9, 10, 11)
+
+Am 2026-08-23 einmalig von Hand gegen den echten Konsumenten gefahren — `vault-rag`
+(Branch `feat/llm-lab-consumer`, 0.25.0) im selben Vault, LM Studio als Chat-Endpunkt
+(CORS aktiv, aus dem Renderer gemessen), Ollama `qwen3-embedding:8b` für den Index
+(5 Notizen). Nicht automatisiert: die Prüfpunkte gehören dem Konsumenten und damit in
+`vault-rag/scripts/gui-smoke.ts`, nicht hierher.
+
+| Schritt | Ergebnis |
+|---|---|
+| 6 · Chat | 🟢 eine Zeile `plugin: vault-retrieval`, `feature: chat`, `model`, `endpointHost: localhost:1234`, `latencyMs 38673`, `ttftMs 7489`, `finishReason: stop` |
+| 8 · Umformatieren (LLM) | 🟢 `feature: reformat:to-list`, 8,8 s, `finishReason: stop` — die Notiz blieb unverändert, das Vorschau-Modal wurde ohne Anwenden geschlossen |
+| 9 · Smart Apply | s. Vermerk unten |
+| 10 · Endpunkt-Testknopf | 🟢 der Lauf fand statt (Notice „Thinking wird unterdrückt"), **keine** Zeile — `settings-probe` steht ab Werk in der Ausschlussliste |
+| 11 · Lab deaktiviert | 🟢 Chat lief vollständig durch (Sende-Knopf zurück auf „Senden"), Antwort korrekt, keine Notice, **keine** Zeile |
+
+**Ein Abbruch wird als solcher aufgezeichnet** (Nebenbefund): ein per „Stop" abgebrochener
+Chat erzeugte eine Zeile mit `error: "Aborted"`, `ttftMs 2060`, `latencyMs 439980` — und
+`response.content: ""`. Der bis zum Abbruch gestreamte Text geht dabei verloren; das ist
+eine Eigenschaft des Konsumenten (`chat_client.ts` meldet im `catch` `content: ""`), nicht
+des Labs, und für die Fehlersuche wäre der Teiltext der interessantere Teil.
+
+### Was die Abnahme über das Datenmodell ergeben hat
+
+**`systemPromptHash` trennt beim ersten realen Konsumenten keine Prompt-Fassungen, sondern
+Aufrufe.** `record.ts` dokumentiert den Hash als „soll zwei Prompt-Fassungen unterscheidbar
+machen". Gemessen: vault-rags Chat packt den kompletten Retrieval-Kontext **in die
+System-Nachricht** (2557 Zeichen, Notizinhalte); zwei Fragen an denselben unveränderten
+Prompt ergaben `43b854f4` und `93712a00`. Für eine Auswertung „hat Prompt-Version B besser
+abgeschnitten als A" ist das Feld auf diesem Pfad damit wertlos — es gruppiert nichts.
+Das ist kein Defekt in Slice 1 (der Hash tut, was der Code sagt), aber eine Annahme, die die
+Bewertungs-Schicht nicht erben darf. Wer Slice 2 baut, braucht entweder einen Hash über den
+**stabilen** Prompt-Anteil oder ein eigenes Feld dafür.
