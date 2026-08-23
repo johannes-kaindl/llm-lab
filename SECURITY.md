@@ -6,7 +6,7 @@ Security updates are provided for the most recently released version of LLM Lab.
 
 | Version | Supported          |
 | ------- | ------------------ |
-| 0.1.x   | :white_check_mark: |
+| 0.2.x   | :white_check_mark: |
 
 ## Reporting a Vulnerability
 
