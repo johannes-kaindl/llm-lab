@@ -6,7 +6,8 @@ Workspace-weite Standards (comply-or-explain): siehe [`../_docs/CONVENTIONS.md`]
 
 **Profil:** `ts-node` · `obsidian-plugin`.
 
-**Stand 2026-08-22: Slice 1 gebaut, Repo noch nicht released.** Für neue Vorhaben gilt: erst
+**Stand 2026-08-23: Slice 1 gebaut, 0.1.0 und 0.2.0 released, beide Forges öffentlich, Store-
+Einreichung steht aus (Developer Dashboard, Maintainer-Login).** Für neue Vorhaben gilt: erst
 Kit-first-Sondierung (`../AGENTS.md` + `../REGISTRY.md`), dann `superpowers:brainstorming` →
 Spec → Plan → TDD.
 
@@ -221,15 +222,38 @@ core/
                     writeNow() awaitbar (nur für Tests), rotate() nach jedem Schreiben.
   i18n/strings.ts   EN/DE-Wörterbuch, importiert für den Registrierungs-Seiteneffekt.
 obsidian/
-  settings_tab.ts   LabSettingTab — deklarative Setting-Zeilen, inkl. der beiden inhaltlich
-                    verbindlichen Zeilen (Ablageort im Klartext, Grenzen der Maskierung).
+  settings_tab.ts   LabSettingTab — ZWEIGLEISIG (seit 0.2.0): getSettingDefinitions() ist die
+                    eine Struktur, get/setControlValue der Host, display() zeichnet dieselbe
+                    Liste mit dem Kit-Walker nach (Obsidian < 1.13). Enthält die beiden
+                    inhaltlich verbindlichen Zeilen (Ablageort im Klartext, Grenzen der
+                    Maskierung) — beide als `render`-Hatch, s. unten.
   vault_sink.ts     vaultSink(adapter) — dünne Anpassung von Obsidians DataAdapter an
                     TraceSink; legt den Ordner beim ersten Schreiben an.
 plugin_api.ts       createLlmLabApi — der öffentliche Vertrag (s. oben).
 main.ts             Plugin-Entry: Sprache setzen, Settings laden, TraceStore/API verdrahten,
                     Statusleiste, toggle-pause-Command, Settings-Tab registrieren.
-vendor/kit/i18n.ts  Verbatim-Snapshot aus obsidian-kit — nie von Hand editieren.
+vendor/kit/i18n.ts          Verbatim-Snapshot aus obsidian-kit — nie von Hand editieren.
+vendor/kit-obsidian/
+  settings_walker.ts        Übernommen aus obsidian-kit@0.27.0 (Herkunftsstempel in Zeile 1),
+                            17. Consumer des Musters. Einzige Abweichung: der `folder`-Zweig
+                            ist entfernt (zieht FolderSuggest nach, kein Ordner-Setting hier).
+                            Nie von Hand editieren — wächst der Bedarf, neu aus dem Kit ziehen.
 ```
+
+**Zwei Regeln, die beim Anfassen des Settings-Tabs gelten** (beide gemessen, nicht vermutet):
+
+1. **Eine Zeile ohne Regler braucht im deklarativen Modell trotzdem einen Renderer.** Eine
+   reine name/desc-Definition überspringt der native 1.13-Renderer stillschweigend, während
+   der Fallback-Walker sie zeichnet — die beiden Pfade zeigten dann Verschiedenes, und unter
+   1.13 fiele es nie auf. Deshalb sind Ablageort und Maskierungs-Grenzen `render`-Hatches.
+   Prüfpunkt 23 im GUI-Smoke bewacht genau das.
+2. **Die Wertprüfung gehört in `setControlValue`, nicht nur in `validate`.** `validate` wertet
+   allein der native Renderer aus; der Kit-Walker kennt es nicht. Ohne die Wache im Host
+   schriebe der Fallback-Pfad `NaN` in die Einstellungen (Prüfpunkt 25).
+
+**`minAppVersion` musste dafür NICHT steigen** — sie steht weiter auf 1.8.7, der Fallback
+bedient alles darunter. Die frühere Stundung dieses Umbaus („1.13-API, unsere Nutzer sind
+darunter") war in genau diesem Punkt falsch.
 
 `src/core/` importiert nirgends `obsidian` (`npm run check:pure` erzwingt das). Nur
 `main.ts`, `obsidian/settings_tab.ts` und `obsidian/vault_sink.ts` tun das.
@@ -249,7 +273,7 @@ npm run check:pure                # scripts/check-pure.mjs — src/core darf obs
 npm run gate                      # lint + typecheck + typecheck:test + typecheck:scripts + test + check:pure + build
 OBSIDIAN_PLUGIN_DIR=… npm run deploy   # build + main.js/manifest.json/styles.css ins Vault-Plugin-Verzeichnis
 STAGING_VAULTS_DIR=… npm run smoke:gui -- --setup         # Pruef-Vault aus docs/images/fixture/ bauen
-STAGING_VAULTS_DIR=… npm run smoke:gui -- --vault llm-lab # 23 Pruefpunkte gegen ein laufendes Obsidian
+STAGING_VAULTS_DIR=… npm run smoke:gui -- --vault llm-lab # 28 Pruefpunkte gegen ein laufendes Obsidian
 npm run version-bump / preflight / release   # delegieren ans zentrale ../tools/release/ (Dach)
 ```
 

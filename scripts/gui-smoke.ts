@@ -473,6 +473,131 @@ async function main(): Promise<void> {
         tab.grenzenSichtbar === true,
         tab.grenzenSichtbar ? "Absatz sichtbar" : "Absatz fehlt oder ist unsichtbar");
     }
+    // --- 13b. Deklarative Settings-API: der Store-Posten und was er dem Nutzer bringt ---
+    // Gemessen wird im HAUPTfenster, auch wenn die Einstellungen ab 1.13 in einem eigenen
+    // Fenster stehen: dort kennt der JS-Kontext kein `app` (yijing-oracle 2026-08-16). Die
+    // Element-Objekte sind vom Hauptfenster aus trotzdem erreichbar — `tab.containerEl`
+    // zeigt auf das andere Dokument, `app.setting.containerEl` bliebe leer.
+    const deklarativ = await cdp.evaluate<{
+      da: boolean; defs?: number; uebernommen?: number; nativeZeilen?: number;
+      fallbackZeilen?: number; suchbegriff?: string | null;
+      mbGelesen?: number; mbGespeichert?: number; ungueltigVerworfen?: boolean;
+    }>(`
+      const tab = app.setting.activeTab
+        ?? (app.setting.pluginTabs || []).find(t => t.id === ${JSON.stringify(PLUGIN_ID)});
+      if (!tab || typeof tab.getSettingDefinitions !== "function") return { da: false };
+
+      const defs = tab.getSettingDefinitions();
+      // Was der HOST uebernommen hat, nicht was das Plugin anbietet — genau darauf sieht
+      // die Einstellungs-Suche. settingItems ist der Cache, den der Host beim Registrieren
+      // aus getSettingDefinitions() zieht.
+      const uebernommen = Array.isArray(tab.settingItems) ? tab.settingItems.length : 0;
+      const nativeZeilen = tab.containerEl.querySelectorAll(".setting-item").length;
+
+      // Suchbegriff aus der EIGENEN Definition ableiten, nie als feste Zeichenkette:
+      // sonst misst der Punkt die UI-Sprache statt die Auffindbarkeit. Fehlt der Begriff,
+      // ist das ein Defekt und kein Grund zum Ueberspringen (vault-crews 2026-08-17).
+      const ersterName = (defs.find(d => typeof d.name === "string" && d.name.length > 3) || {}).name || null;
+
+      // Der Fallback-Pfad (< 1.13) laeuft im Alltag NIE — ohne diesen Aufruf bliebe er
+      // ungeprueft und drifted still von der Definitionsliste weg.
+      tab.display();
+      const fallbackZeilen = tab.containerEl.querySelectorAll(".setting-item").length;
+
+      // Die MB↔Byte-Uebersetzung existiert nur im Host (getControlValue/setControlValue)
+      // und in keinem vitest — die Zeile heisst "(MB)", gespeichert werden Bytes.
+      const mbGelesen = tab.getControlValue("maxBytes");
+      await tab.setControlValue("maxBytes", 3);
+      const mbGespeichert = app.plugins.plugins[${JSON.stringify(PLUGIN_ID)}].settings.maxBytes;
+
+      // Ungueltige Zahl: der native Pfad zeigt dafuer validate(), der Fallback-Walker
+      // kennt validate NICHT — die Wache muss deshalb in setControlValue sitzen.
+      await tab.setControlValue("keepDays", "keine Zahl");
+      const ungueltigVerworfen =
+        app.plugins.plugins[${JSON.stringify(PLUGIN_ID)}].settings.keepDays > 0;
+
+      return { da: true, defs: defs.length, uebernommen, nativeZeilen, fallbackZeilen,
+               suchbegriff: ersterName, mbGelesen, mbGespeichert, ungueltigVerworfen };
+    `);
+
+    if (!deklarativ.da) {
+      record("Der Settings-Tab bietet getSettingDefinitions() an", false,
+        "Methode fehlt — genau der Store-Befund prefer-setting-definitions");
+    } else {
+      record("getSettingDefinitions() liefert Zeilen und der Host hat sie uebernommen",
+        (deklarativ.defs ?? 0) > 0 && deklarativ.uebernommen === deklarativ.defs,
+        `${deklarativ.defs} Definitionen, ${deklarativ.uebernommen} vom Host uebernommen`);
+
+      // DER Regress-Faenger: eine Zeile ohne Control ueberspringt der native Renderer
+      // stillschweigend, waehrend der Fallback-Walker sie zeichnet. Unter 1.13 faellt das
+      // nie auf, weil dort nur der Fallback laeuft.
+      //
+      // ⚠️ Dieser eine Punkt taugt NICHT als Vorher/Nachher-Beleg, und das ist keine
+      // Schwaeche, sondern seine Bauart: vor der Migration existiert kein nativer Pfad,
+      // also vergleicht er zweimal dasselbe display() und ist zwangslaeufig gruen
+      // (gemessen 2026-08-23: alter Stand „nativ 7 · Fallback 7"). Er bewacht den NEUEN
+      // Zustand gegen kuenftige Drift zwischen den beiden Pfaden — die vier Punkte um ihn
+      // herum sind die, die am Vor-Stand tatsaechlich rot werden.
+      record("Nativer Pfad und display()-Fallback zeichnen dieselbe Zeilenzahl",
+        deklarativ.nativeZeilen === deklarativ.fallbackZeilen && (deklarativ.nativeZeilen ?? 0) > 0,
+        `nativ ${deklarativ.nativeZeilen} · Fallback ${deklarativ.fallbackZeilen}`);
+
+      record("Die MB-Anzeige uebersetzt in beide Richtungen (angezeigt MB, gespeichert Bytes)",
+        deklarativ.mbGespeichert === 3 * 1024 * 1024 && typeof deklarativ.mbGelesen === "number",
+        `gelesen ${deklarativ.mbGelesen} MB · nach setControlValue(3): ${deklarativ.mbGespeichert} Bytes`);
+
+      record("Eine ungueltige Zahl wird auch ohne validate() verworfen (Fallback-Pfad)",
+        deklarativ.ungueltigVerworfen === true,
+        deklarativ.ungueltigVerworfen ? "keepDays bleibt positiv" : "keepDays wurde zu NaN/0 ueberschrieben");
+    }
+
+    // Auffindbarkeit in der Einstellungs-Suche — der eigentliche Nutzen der Migration,
+    // gemessen im Dokument, in dem die Suche steht.
+    if (deklarativ.da && deklarativ.suchbegriff) {
+      const begriff = deklarativ.suchbegriff;
+      // Zwei Fallen, beide am 2026-08-23 gegen 1.13.7 gemessen, beide sahen wie ein
+      // Plugin-Defekt aus: (1) `feld.value = x` feuert NICHT — das Feld haengt an einem
+      // eigenen Setter, man braucht den nativen Prototyp-Setter, sonst bleibt die Suche
+      // leer und der Punkt meldet „nicht auffindbar". (2) Die Treffer stehen in
+      // `.setting-search-result-group`/`.setting-search-result-tab`, nicht in einem
+      // `.setting-item`-Container — ein geratener Selektor zaehlt hier immer 0.
+      const suchen = (wert: string): string => `
+        const feld = document.querySelector("input[type=search]");
+        if (!feld) return -1;
+        const setzen = Object.getOwnPropertyDescriptor(Object.getPrototypeOf(feld), "value").set;
+        setzen.call(feld, ${JSON.stringify(wert)});
+        feld.dispatchEvent(new Event("input", { bubbles: true }));
+        return 0;
+      `;
+      const zaehlen = `
+        return [...document.querySelectorAll(".setting-search-result-tab")]
+          .filter(e => /LLM Lab/i.test(e.textContent || "")).length;
+      `;
+      const feldDa = await (tabCdp ?? cdp).evaluate<number>(suchen(begriff)).catch(() => -1);
+      if (feldDa === -1) {
+        record("Einstellungen sind ueber die Einstellungs-Suche auffindbar", false,
+          "kein Suchfeld gefunden — Auffindbarkeit nicht belegt");
+      } else {
+        // Warten auf der Node-Seite, nicht im Renderer: `pollUntil` liefert erst, wenn der
+        // Ausdruck etwas Wahrheitswertiges ergibt (0 Treffer = weiter warten).
+        const gefunden = await pollUntil<number>(tabCdp ?? cdp, zaehlen, 5000, 250).catch(() => null);
+        // Gegenprobe im selben Lauf: ein Begriff, den keine Definition traegt, MUSS 0
+        // ergeben. Ohne sie belegt ein Treffer nur, dass irgendetwas gezaehlt wurde
+        // (CORE-TEST-13) — die Suche zeigt bei leerer Eingabe alle Tabs an.
+        await (tabCdp ?? cdp).evaluate(suchen("zzz-kein-treffer-erwartet")).catch(() => undefined);
+        await new Promise((r) => setTimeout(r, 900));
+        const unsinn = await (tabCdp ?? cdp).evaluate<number>(zaehlen).catch(() => -1);
+        record("Einstellungen sind ueber die Einstellungs-Suche auffindbar",
+          (gefunden ?? 0) > 0 && unsinn === 0,
+          `„${begriff}" → ${gefunden ?? 0} Treffer · Gegenprobe „zzz-…" → ${unsinn}`);
+      }
+    } else if (deklarativ.da) {
+      // Kein ableitbarer Begriff heisst: keine benannte Definition. Das ist der Defekt,
+      // den dieser Punkt fangen soll — als rot verbuchen, nicht ueberspringen.
+      record("Einstellungen sind ueber die Einstellungs-Suche auffindbar", false,
+        "kein Suchbegriff aus den Definitionen ableitbar (keine benannte Zeile)");
+    }
+
     if (tabCdp !== cdp) tabCdp?.close();
     await cdp.evaluate(`app.setting.close(); return true;`).catch(() => undefined);
 
@@ -556,10 +681,12 @@ function TAB_LESEN(base: string): string {
       name: (z.querySelector(".setting-item-name")?.textContent || "").trim(),
       desc: (z.querySelector(".setting-item-description")?.textContent || "").trim(),
     })).find(z => z.desc.includes(${JSON.stringify(base)}));
-    // Der Grenzen-Absatz ist KEIN .setting-item, sondern ein <p> am Ende. Sichtbarkeit
-    // ueber getClientRects messen, nicht ueber Anwesenheit: ein Element kann im DOM
-    // haengen und trotzdem nichts anzeigen.
-    const grenzen = [...wurzel.querySelectorAll("p.setting-item-description")]
+    // Der Grenzen-Hinweis war bis 2026-08-23 ein blosses <p> am Ende; seit der Migration
+    // auf getSettingDefinitions() ist er eine regulaere Setting-Zeile mit Beschreibung
+    // (eine Zeile ohne Regler braucht im deklarativen Modell trotzdem einen Renderer).
+    // Sichtbarkeit ueber getClientRects messen, nicht ueber Anwesenheit: ein Element kann
+    // im DOM haengen und trotzdem nichts anzeigen.
+    const grenzen = [...wurzel.querySelectorAll(".setting-item-description")]
       .find(p => /Masking finds patterns|Die Maskierung findet Muster/.test(p.textContent || ""));
     return {
       da: true,

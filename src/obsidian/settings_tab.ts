@@ -1,5 +1,10 @@
-import { App, PluginSettingTab, Setting } from "obsidian";
+import { App, PluginSettingTab, type SettingDefinitionItem } from "obsidian";
 import { t } from "../vendor/kit/i18n";
+import {
+  renderSettingDefinitions,
+  type SettingControlHost,
+} from "../vendor/kit-obsidian/settings_walker";
+import type { LabSettings } from "../core/settings";
 import type LlmLabPlugin from "../main";
 
 const BYTES_PER_MB = 1024 * 1024;
@@ -13,7 +18,25 @@ function parseLines(value: string): string[] {
     .filter((line) => line.length > 0);
 }
 
-export class LabSettingTab extends PluginSettingTab {
+/** Eine positive, endliche Zahl — die Bedingung, unter der `keepDays`/`maxBytes`
+ *  ueberhaupt sinnvoll sind (0 Tage hiesse „sofort loeschen", negativ ist unsinnig). */
+function isPositiveNumber(value: unknown): boolean {
+  const n = Number(value);
+  return Number.isFinite(n) && n > 0;
+}
+
+/**
+ * Zweigleisiger Settings-Tab (REGISTRY „Zweigleisige deklarative Settings").
+ *
+ * `getSettingDefinitions()` IST die Struktur — Obsidian >= 1.13 rendert daraus selbst
+ * und nimmt die Zeilen in seine Einstellungs-Suche auf. Darunter ruft der Host
+ * `display()`, das DIESELBE Definitionsliste mit der klassischen Setting-API
+ * nachzeichnet (Kit-Walker). Es gibt bewusst keinen zweiten Definitionsbaum: was hier
+ * nicht in `getSettingDefinitions()` steht, existiert in keinem der beiden Pfade.
+ *
+ * `minAppVersion` muss dafuer NICHT steigen — der Fallback bedient 1.8.7 weiter.
+ */
+export class LabSettingTab extends PluginSettingTab implements SettingControlHost {
   constructor(
     app: App,
     private readonly plugin: LlmLabPlugin,
@@ -21,95 +44,134 @@ export class LabSettingTab extends PluginSettingTab {
     super(app, plugin);
   }
 
+  getControlValue(key: string): unknown {
+    const s = this.plugin.settings;
+    switch (key as keyof LabSettings) {
+      case "enabled":
+        return s.enabled;
+      case "keepDays":
+        return s.keepDays;
+      // Gespeichert wird in Bytes, angezeigt in MB — die Zeile heisst „(MB)".
+      case "maxBytes":
+        return s.maxBytes / BYTES_PER_MB;
+      case "excludedFeatures":
+        return s.excludedFeatures.join("\n");
+      case "redactPiiInTrace":
+        return s.redactPiiInTrace;
+      case "customPiiTerms":
+        return s.customPiiTerms.join("\n");
+      default:
+        return undefined;
+    }
+  }
+
+  async setControlValue(key: string, value: unknown): Promise<void> {
+    const s = this.plugin.settings;
+    switch (key as keyof LabSettings) {
+      case "enabled":
+        s.enabled = Boolean(value);
+        break;
+      // Die Zahl-Pruefung steht HIER und nicht nur in `validate`: `validate` wertet
+      // allein der native 1.13-Renderer aus, der Fallback-Walker kennt es nicht.
+      // Ohne diese Wache schriebe der Fallback-Pfad `NaN` in die Einstellungen.
+      case "keepDays":
+        if (!isPositiveNumber(value)) return;
+        s.keepDays = Number(value);
+        break;
+      case "maxBytes":
+        if (!isPositiveNumber(value)) return;
+        s.maxBytes = Number(value) * BYTES_PER_MB;
+        break;
+      case "excludedFeatures":
+        s.excludedFeatures = parseLines(String(value));
+        break;
+      case "redactPiiInTrace":
+        s.redactPiiInTrace = Boolean(value);
+        break;
+      case "customPiiTerms":
+        s.customPiiTerms = parseLines(String(value));
+        break;
+      default:
+        return;
+    }
+    await this.plugin.saveSettings();
+  }
+
+  getSettingDefinitions(): SettingDefinitionItem[] {
+    const positive = (v: number): string | void =>
+      isPositiveNumber(v) ? undefined : t("settings.positiveNumber");
+
+    return [
+      {
+        name: t("settings.enabled.name"),
+        desc: t("settings.enabled.desc"),
+        control: { type: "toggle", key: "enabled" },
+      },
+      {
+        name: t("settings.keepDays.name"),
+        control: { type: "number", key: "keepDays", validate: positive },
+      },
+      {
+        name: t("settings.maxBytes.name"),
+        control: { type: "number", key: "maxBytes", validate: positive },
+      },
+      {
+        name: t("settings.excluded.name"),
+        desc: t("settings.excluded.desc"),
+        control: { type: "textarea", key: "excludedFeatures" },
+      },
+      // Muss VOR customPiiTerms stehen: es ist der einzige Aktivator dieses Felds
+      // (WriteOptions.piiTerms wirkt nur mit redactPii:true) und ist per Default aus —
+      // sonst tippt jemand einen Klientennamen ins Feld darunter und bekommt weder
+      // Maskierung noch einen Hinweis, dass gerade nichts maskiert wird.
+      {
+        name: t("settings.redactTrace.name"),
+        desc: t("settings.redactTrace.desc"),
+        control: { type: "toggle", key: "redactPiiInTrace" },
+      },
+      {
+        name: t("settings.customPii.name"),
+        desc: t("settings.customPii.desc"),
+        control: { type: "textarea", key: "customPiiTerms" },
+      },
+      // Die beiden folgenden Zeilen tragen KEINEN Regler und sind trotzdem als
+      // `render`-Hatch gebaut, nicht als reine name/desc-Definition: eine Zeile ohne
+      // Control ueberspringt der native 1.13-Renderer stillschweigend, waehrend der
+      // Fallback-Walker sie zeichnet — die beiden Pfade zeigten dann Verschiedenes.
+      // Eine Zeile ohne Regler braucht im deklarativen Modell trotzdem einen Renderer.
+      // (Belegt an yijing-oracle 2026-08-16, REGISTRY „eine-Wahrheit-Walker".)
+      //
+      // Inhaltlich verbindlich: sagt, WO die Daten liegen (im Vault, Sync/Backup ist
+      // Sache der eigenen Konfiguration) — kein Nebensatz, eine eigene Zeile.
+      {
+        name: t("settings.location.name"),
+        render: (setting) => {
+          setting.setDesc(
+            t(
+              "settings.location.desc",
+              this.plugin.manifest.dir ?? `.obsidian/plugins/${this.plugin.manifest.id}`,
+            ),
+          );
+        },
+      },
+      // Inhaltlich verbindlich: was die Maskierung findet UND was nicht — soll keine
+      // falsche Sicherheit erzeugen, deshalb sichtbar im Tab statt in einer
+      // Beschreibung untergemischt.
+      // Die Zeile trug bis 2026-08-23 gar keine Ueberschrift (ein blosses <p>). Das
+      // deklarative Modell verlangt einen `name` — was hier ein Gewinn ist: mit
+      // Ueberschrift ist der Hinweis ab 1.13 auch ueber die Einstellungs-Suche zu finden.
+      {
+        name: t("settings.redactionLimits.name"),
+        render: (setting) => {
+          setting.setDesc(t("settings.redactionLimits"));
+        },
+      },
+    ];
+  }
+
   display(): void {
     const { containerEl } = this;
     containerEl.empty();
-
-    new Setting(containerEl)
-      .setName(t("settings.enabled.name"))
-      .setDesc(t("settings.enabled.desc"))
-      .addToggle((toggle) =>
-        toggle.setValue(this.plugin.settings.enabled).onChange(async (value) => {
-          this.plugin.settings.enabled = value;
-          await this.plugin.saveSettings();
-        }),
-      );
-
-    new Setting(containerEl).setName(t("settings.keepDays.name")).addText((text) =>
-      text.setValue(String(this.plugin.settings.keepDays)).onChange(async (value) => {
-        const n = Number(value);
-        if (!Number.isFinite(n) || n <= 0) return;
-        this.plugin.settings.keepDays = n;
-        await this.plugin.saveSettings();
-      }),
-    );
-
-    new Setting(containerEl).setName(t("settings.maxBytes.name")).addText((text) =>
-      text
-        .setValue(String(this.plugin.settings.maxBytes / BYTES_PER_MB))
-        .onChange(async (value) => {
-          const n = Number(value);
-          if (!Number.isFinite(n) || n <= 0) return;
-          this.plugin.settings.maxBytes = n * BYTES_PER_MB;
-          await this.plugin.saveSettings();
-        }),
-    );
-
-    new Setting(containerEl)
-      .setName(t("settings.excluded.name"))
-      .setDesc(t("settings.excluded.desc"))
-      .addTextArea((area) =>
-        area
-          .setValue(this.plugin.settings.excludedFeatures.join("\n"))
-          .onChange(async (value) => {
-            this.plugin.settings.excludedFeatures = parseLines(value);
-            await this.plugin.saveSettings();
-          }),
-      );
-
-    // Muss VOR customPiiTerms gezeichnet werden: es ist der einzige Aktivator dieses
-    // Felds (WriteOptions.piiTerms wirkt nur mit redactPii:true) und ist per Default aus —
-    // sonst tippt jemand einen Klientennamen ins Feld darunter und bekommt weder Maskierung
-    // noch einen Hinweis, dass gerade nichts maskiert wird (falsches Sicherheitsgefuehl).
-    new Setting(containerEl)
-      .setName(t("settings.redactTrace.name"))
-      .setDesc(t("settings.redactTrace.desc"))
-      .addToggle((toggle) =>
-        toggle.setValue(this.plugin.settings.redactPiiInTrace).onChange(async (value) => {
-          this.plugin.settings.redactPiiInTrace = value;
-          await this.plugin.saveSettings();
-        }),
-      );
-
-    new Setting(containerEl)
-      .setName(t("settings.customPii.name"))
-      .setDesc(t("settings.customPii.desc"))
-      .addTextArea((area) =>
-        area
-          .setValue(this.plugin.settings.customPiiTerms.join("\n"))
-          .onChange(async (value) => {
-            this.plugin.settings.customPiiTerms = parseLines(value);
-            await this.plugin.saveSettings();
-          }),
-      );
-
-    // Inhaltlich verbindlich: sagt, WO die Daten liegen (im Vault, Sync/Backup ist
-    // Sache der eigenen Konfiguration) — kein Nebensatz, eine eigene Zeile.
-    new Setting(containerEl)
-      .setName(t("settings.location.name"))
-      .setDesc(
-        t(
-          "settings.location.desc",
-          this.plugin.manifest.dir ?? `.obsidian/plugins/${this.plugin.manifest.id}`,
-        ),
-      );
-
-    // Inhaltlich verbindlich: was die Maskierung findet UND was nicht — soll keine
-    // falsche Sicherheit erzeugen, deshalb sichtbar im Tab statt in einer Beschreibung
-    // untergemischt.
-    containerEl.createEl("p", {
-      text: t("settings.redactionLimits"),
-      cls: "setting-item-description",
-    });
+    renderSettingDefinitions(containerEl, this.getSettingDefinitions(), this, this.app);
   }
 }

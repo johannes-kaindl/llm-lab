@@ -23,18 +23,9 @@ export default [
       },
     },
   },
-  {
-    // STORE-SCHULD: minAppVersion 1.8.7 ist NICHT der Grund fuer den Override — vault-rag
-    // steht ebenfalls unter der 1.13-Schwelle (minAppVersion 1.12.7) und faehrt die
-    // deklarative API trotzdem zweigleisig (settings.ts: display() faellt auf
-    // renderImperative() zurueck). Die ehrliche Begruendung: sechs Settings-Zeilen in
-    // Slice 1 lohnen den Zweigleisig-Umbau schlicht noch nicht. Abloesung: sobald eine
-    // spaetere Slice die Settings-Tab-Zeilenzahl spuerbar erhoeht (eigene Entscheidung,
-    // kein Task in Slice 1), zieht LabSettingTab auf getSettingDefinitions() um, nach dem
-    // Zweigleisig-Muster aus vault-rag.
-    files: ["src/obsidian/settings_tab.ts"],
-    rules: {
-      "obsidianmd/settings-tab/prefer-setting-definitions": "off",
-    },
-  },
+  // Die STORE-SCHULD auf `settings-tab/prefer-setting-definitions` ist am 2026-08-23
+  // abgeloest: LabSettingTab faehrt den Zweigleisig-Weg (getSettingDefinitions() +
+  // Kit-Walker als display()-Fallback). Der Override gehoert im selben Zug weg — bleibt
+  // er stehen, ist der lokale Lint fuer genau die Warnung blind, deren Behebung er
+  // behauptet, und „gruen" belegt dann nichts (LESSONS 2026-08-17, vault-crews).
 ];

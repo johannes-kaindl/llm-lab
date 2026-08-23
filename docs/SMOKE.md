@@ -32,7 +32,7 @@ npm run smoke:gui -- --vault llm-lab
 `--keep` lässt Einstellungen und erfundene Trace-Dateien stehen, `--ignore-deploy` übergeht
 den Hash-Abgleich Arbeitsbaum ↔ Vault.
 
-## Prüfpunkte (23)
+## Prüfpunkte (28)
 
 | # | Prüft | Entspricht Handover-Schritt |
 |---|---|---|
@@ -48,8 +48,33 @@ den Hash-Abgleich Arbeitsbaum ↔ Vault.
 | 16 | Bearer-Token im aufgezeichneten Text wird maskiert | — |
 | 17–18 | PII per Default im Klartext (dokumentierte Asymmetrie); eingeschaltet record-weit **derselbe** Platzhalter | — |
 | 19–21 | Settings-Tab: PII-Schalter über dem Feld, das nur mit ihm wirkt · Ablageort im Klartext · Grenzen der Maskierung sichtbar | 5 |
-| 22 | `log()` wirft auch bei fehlerhaftem Input nicht | — |
-| 23 | Ohne aktives Lab findet ein Konsument nichts und bricht nicht | 11 (ohne Konsument) |
+| 22–26 | Deklarative Settings-API (s. unten) | — |
+| 27 | `log()` wirft auch bei fehlerhaftem Input nicht | — |
+| 28 | Ohne aktives Lab findet ein Konsument nichts und bricht nicht | 11 (ohne Konsument) |
+
+### Die fünf Punkte zur deklarativen Settings-API (22–26)
+
+Dazugekommen mit der Migration auf `getSettingDefinitions()` (0.2.0). Sie messen den Pfad,
+den **keine** vitest-Suite erreicht — und den es im Alltag doppelt gibt:
+
+| # | Prüft | Warum er nicht weggelassen werden kann |
+|---|---|---|
+| 22 | `getSettingDefinitions()` liefert Zeilen **und der Host hat sie übernommen** (`tab.settingItems`) | Was das Plugin anbietet und was der Host indiziert, sind zwei Messungen. Nur die zweite entscheidet über die Einstellungs-Suche. |
+| 23 | Nativer Pfad und `display()`-Fallback zeichnen **dieselbe** Zeilenzahl | Eine Zeile ohne Regler überspringt der native 1.13-Renderer stillschweigend, während der Walker sie zeichnet. Unter 1.13 fällt das nie auf. |
+| 24 | MB↔Byte-Übersetzung läuft in beide Richtungen rund | Die Zeile heißt „(MB)", gespeichert werden Bytes. Die Übersetzung lebt nur im Host, in keinem Unit-Test. |
+| 25 | Eine ungültige Zahl wird **auch ohne `validate()`** verworfen | `validate` wertet nur der native Renderer aus; der Kit-Walker kennt es nicht. Ohne eigene Wache schriebe der Fallback-Pfad `NaN`. |
+| 26 | Einstellungen sind über Obsidians Einstellungs-Suche auffindbar | Das ist der reale Nutzen der Migration — genau das, was die Store-Warnung `prefer-setting-definitions` bemängelt. |
+
+Zwei Fallen, beide am 2026-08-23 gegen 1.13.7 gemessen und beide sahen zuerst wie ein
+Plugin-Defekt aus: das Suchfeld reagiert **nicht** auf `feld.value = x` (es braucht den
+nativen Prototyp-Setter), und die Treffer stehen in `.setting-search-result-tab`, nicht in
+einem `.setting-item`-Container. Ein geratener Selektor zählt dort immer 0 — und meldet damit
+„nicht auffindbar" für ein Plugin, das auffindbar ist.
+
+⚠️ **Punkt 23 taugt nicht als Vorher/Nachher-Beleg**, und das ist seine Bauart, kein Mangel:
+vor der Migration existiert kein nativer Pfad, er vergleicht dort zweimal dasselbe `display()`
+und ist zwangsläufig grün. Er bewacht den neuen Zustand gegen künftige Drift zwischen den
+Pfaden; die Vorher/Nachher-Aussage tragen 22, 24, 25 und 26.
 
 ### Was der Smoke NICHT abdeckt
 
@@ -67,6 +92,7 @@ anderen Schicht überdauert.
 | Datum | Obsidian | Ergebnis | Gegenprobe |
 |---|---|---|---|
 | 2026-08-23 | 1.13.7 (Vault `llm-lab`, Oberfläche de) | **23/23** | **19/23** mit vier eingebauten Defekten — genau die erwarteten Punkte rot, kein anderer fiel mit |
+| 2026-08-23 | 1.13.7 (Vault `llm-lab`, Oberfläche de) | **28/28** nach der Settings-API-Migration | **24/28** gegen den 0.1.0-Stand aus git (gebaut und deployt, derselbe neue Treiber): 22, 24, 25 und 26 rot, kein anderer fiel mit. Punkt 23 blieb erwartungsgemäß grün (s. Warnung oben). Punkt 26 trägt zusätzlich eine Gegenprobe im selben Lauf: Suchbegriff aus der eigenen Definition → 1 Treffer, Unsinn-Begriff → 0 |
 
 Die Gegenprobe baute gleichzeitig ein: `vault_sink.list` liefert `bytes: 0` (der stille
 `stat()`-Fehlerfall) → Punkt 11 rot; Lucide-Icon `circle-dott` → Punkt 3 rot; `shouldLog`

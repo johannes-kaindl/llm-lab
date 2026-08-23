@@ -6,6 +6,30 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.2.0] — 2026-08-23
+
+### Changed
+
+- **Settings now use Obsidian's declarative settings API.** The settings tab implements
+  `getSettingDefinitions()`, so on Obsidian 1.13 and later the host renders the settings
+  itself and indexes them — **every LLM Lab setting is now findable through Obsidian's
+  settings search**, which it previously was not. Measured against 1.13.7: 0 → 8 definitions
+  taken over by the host, and a term from the plugin's own definitions now returns a hit in
+  settings search where it returned none before.
+- **`minAppVersion` stays at 1.8.7.** The tab renders the same single definition list through
+  the classic settings API on anything below 1.13, so no user loses access. Nothing about
+  this change requires a newer Obsidian.
+- The two binding notice rows (where data is stored, what masking does and does not catch)
+  are rendered explicitly rather than as plain definitions: a row without a control is
+  silently skipped by the 1.13 renderer while the fallback draws it, which would make the two
+  paths disagree. The masking-limits notice gained a heading as a result — it is now findable
+  in settings search too, where before it was an unlabelled paragraph.
+
+### Fixed
+
+- An invalid number entered for "keep traces for (days)" or "maximum trace size (MB)" is now
+  rejected on every render path instead of only the classic one.
+
 ## [0.1.0] — 2026-08-23
 
 ### Added
