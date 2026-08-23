@@ -29,16 +29,26 @@ LLM Lab is local-first by design, which is also its core security property:
   up is entirely a function of your own vault sync/backup configuration — LLM Lab does not
   change that behavior.
 - **Bearer tokens appearing verbatim in recorded text are masked on every write** — that
-  pattern match is real and unconditional. **Endpoint API keys are not currently masked by
-  exact match, and this is a known gap in Slice 1, not a design choice:** the key-masking
-  function is wired with a permanently empty key list, and the logging API gives a calling
-  sibling plugin no field to supply its own key through (see `AGENTS.md` § "Bekannte Lücken in
-  Slice 1"). A second, optional pass masks PII patterns (e-mail addresses, IBANs, phone
+  pattern match is real and unconditional. **Endpoint API keys are masked by exact match on
+  every write as well:** a calling sibling plugin passes its own keys along with the call
+  (`secrets` on the logging API); they are used solely as a masking list and never become part
+  of the record. The boundary of that promise: LLM Lab keeps no key list of its own, so this
+  covers exactly the keys a calling plugin hands over — a plugin that passes none is back to
+  the `Bearer` pattern alone. A second, optional pass masks PII patterns (e-mail addresses, IBANs, phone
   numbers, credentials embedded in URLs) with numbered placeholders that stay consistent
   across a whole record — off by default, only active when "redact PII in trace" is turned
   on. **The masking finds patterns, not meaning** — it does not find names, physical
   addresses, medical or other diagnoses, or relationships between people. Treat a recorded
   trace as being exactly as confidential as the notes and prompts that produced it.
+- **Whole folders can be kept out of the log.** "Never record notes from these folders"
+  (subfolders included) is evaluated *before* a record is built: a call that drew on a note
+  from an excluded folder is never written, so there is nothing on disk to redact afterwards.
+  "Strict folder exclusion" (on by default) means one excluded note is enough to skip the
+  call; off, the call is skipped only when every note involved is excluded. **The boundary,
+  stated because it is a promise with a condition:** the filter only applies to calls whose
+  plugin reports which notes went into them. A plugin that reports no paths is recorded as
+  before — this is deliberate (fail-open), so that enabling an exclusion cannot silently
+  silence a caller that has not been updated yet.
 - **Uninstalling the plugin is the off switch.** There is no separate account, license
   server, or background process to disable — removing LLM Lab from a vault stops all
   recording immediately and permanently for that vault.

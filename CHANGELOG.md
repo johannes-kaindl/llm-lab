@@ -6,6 +6,24 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+- `LabLogInput.secrets` — ein aufrufendes Plugin kann seine Endpunkt-Schluessel
+  mitgeben; sie werden exakt maskiert und landen nie im Record.
+- `LabLogInput.contextPaths` plus die Einstellungen „Notizen aus diesen Ordnern nie
+  mitschreiben" und „Strenger Ordner-Ausschluss": ein ausgeschlossener Pfad
+  verhindert, dass ein Record ueberhaupt entsteht.
+
+### Changed
+- **BREAKING:** `apiVersion` 1 → 2. Konsumenten, die strikt auf 1 pruefen,
+  schweigen bis zum Nachzug (vault-rag zieht im selben Vorhaben nach).
+- `shouldLog` nimmt ein `LogDecisionInput` statt eines Feature-Strings.
+
+### Fixed
+- Die Schluessel-Maskierung lief mit permanent leerer Liste und war damit real
+  wirkungslos (nur das BEARER-Muster griff) — dokumentiert als „Bekannte Luecke
+  in Slice 1", jetzt geschlossen.
+- Der in der Spec (§5.5) verlangte Ordner-Filter fehlte vollstaendig.
+
 ## [0.2.0] — 2026-08-23
 
 ### Changed

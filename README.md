@@ -53,12 +53,13 @@ itself from your existing one either way.
 
 Before anything is written, a masking pass looks for **Bearer tokens that appear verbatim
 in recorded text** (`Bearer <token>`) and replaces them — that pattern is real and always
-runs. **Endpoint API keys are not currently masked by exact match, and this is a known gap
-in Slice 1, not a design choice:** the key-masking function is wired with a permanently empty
-key list (`main.ts`), and `plugin.api.log()` gives a calling sibling plugin no field to supply
-its own key through. See [`AGENTS.md`](AGENTS.md) § "Bekannte Lücken in Slice 1" for what would
-close it. Separately — and only if the stricter "redact PII in trace" setting is turned on
-(default: off) — a second pass runs over the message and response text:
+runs. **Endpoint API keys are masked by exact match too, on every write** — a calling plugin
+passes its own keys along with the call (`secrets` on the logging API), they are used only for
+masking and never become part of the record. **The condition worth knowing:** LLM Lab has no
+key list of its own, so this only covers keys a calling plugin actually hands over. A plugin
+that passes none is back to the `Bearer` pattern alone. Separately — and only if the stricter
+"redact PII in trace" setting is turned on (default: off) — a second pass runs over the message
+and response text:
 
 **The masking finds patterns. It is deliberately not told to find meaning.** Concretely, it
 catches:
@@ -86,6 +87,16 @@ trace too, but the limitation above still applies: it is not a general anonymize
 not audited to any compliance standard. Treat every recorded trace as being exactly as
 confidential as the notes and prompts that produced it — this section exists to prevent a
 false sense of safety, not to create one.
+
+**You can also keep whole folders out of the log entirely.** List them under "Never record
+notes from these folders" and a call that drew on a note from one of them is not written at
+all — no record is even built, so there is nothing to redact afterwards. Subfolders count;
+"Strict folder exclusion" (on by default) means a *single* excluded note is enough to skip the
+call, while turning it off skips a call only when *every* note involved is excluded. **The
+condition, stated plainly because it is a promise with a boundary:** the filter only applies to
+calls whose plugin tells LLM Lab which notes went into them. A plugin that reports no paths is
+recorded as before — the exclusion holds per plugin, not across every plugin, and LLM Lab
+deliberately does not silence callers that cannot report paths yet.
 
 **Nothing is recorded unless a sibling plugin calls the API, and uninstalling LLM Lab is the
 off switch.** There is no account, no license check, and no background service to disable —
@@ -152,6 +163,8 @@ Turning the plugin off — or removing it — stops all recording for that vault
 | **Days to keep** | 7 | Trace files older than this are deleted on rotation. Today's file is never deleted. |
 | **Max total size (MB)** | 20 | Once the kept trace files exceed this, the oldest are deleted first — today's file is exempt. |
 | **Excluded features** | `settings-probe` | One feature identifier per line. A calling plugin's own connectivity probes are the typical entry — traffic that is not a real interaction. |
+| **Never record notes from these folders** | *(empty)* | One folder path per line, subfolders included. A call that drew on a note from one of them is never written. Only applies to calls whose plugin reports which notes went into them. |
+| **Strict folder exclusion** | on | On: a single excluded note prevents the whole call from being recorded. Off: the call is only skipped when every note involved is excluded. |
 | **Custom PII terms** | *(empty)* | One term per line, in addition to the built-in e-mail/IBAN/phone/URL-credential patterns — masked the same way, with the same numbered-placeholder consistency. |
 | **Redact PII in trace** | off | Applies the PII masking pass to the raw trace as well, not only to a future rated dataset. Off by default because debugging a bad answer needs to see what was actually sent. |
 
@@ -174,7 +187,21 @@ interface LlmLabApi {
 `log()` is fire-and-forget by design: it returns the assigned id immediately and writes to
 disk asynchronously, so a caller mid-stream is never slowed down or blocked by logging. Read
 the API defensively (LLM Lab may not be installed) and never `await` `log()` — it has nothing
-to await. See [`AGENTS.md`](AGENTS.md) for the full contract and the reasoning behind it.
+to await.
+
+**`apiVersion` is `2`.** Check it against your own constant before relying on the shape — that
+version number is the contract, deliberately in place of a compile-time dependency between two
+independent repositories. Version 2 added two optional fields to the log input, both of which a
+consumer should fill in if it can:
+
+- **`secrets?: string[]`** — the endpoint keys used for this call. They are used only as a
+  masking list and never become part of the record. Without them, only verbatim `Bearer`
+  tokens are caught.
+- **`contextPaths?: string[]`** — the vault paths of the notes whose content went into this
+  call. This is what the user's folder exclusion is evaluated against; a call that reports no
+  paths is always recorded.
+
+See [`AGENTS.md`](AGENTS.md) for the full contract and the reasoning behind it.
 
 ## Contributing
 
