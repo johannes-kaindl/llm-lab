@@ -1,0 +1,198 @@
+# LLM Lab
+
+**Zeichnet jeden lokalen LLM-Aufruf deiner Obsidian-Plugins auf, damit die guten Antworten bewertet und zu Auswertungs- oder Fine-Tuning-Material werden können.**
+
+[![Lizenz: AGPL-3.0](https://img.shields.io/badge/license-AGPL--3.0-blue.svg)](https://git.jkaindl.de/jkaindl/llm-lab/src/branch/main/LICENSE)
+[![Doku: CC BY-SA 4.0](https://img.shields.io/badge/docs-CC%20BY--SA%204.0-lightgrey.svg)](https://git.jkaindl.de/jkaindl/llm-lab/src/branch/main/LICENSE-DOCS)
+![Plattform](https://img.shields.io/badge/platform-Obsidian%201.8.7%2B%20·%20desktop%20%26%20mobile-7c3aed)
+
+> Englisch ist die kanonische Fassung: [README.md](README.md).
+
+## Was es tut
+
+Mehrere Obsidian-Plugins in diesem Workspace sprechen mit lokalen LLMs (ein RAG-Assistent,
+ein Chat-Plugin, ein Crew-Orchestrator, ein Suchen-und-Ersetzen-Plugin) — und keines von
+ihnen hält fest, wie gut diese Aufrufe eigentlich laufen. LLM Lab ist ein kleiner, stiller
+Rekorder, den ein Nachbarplugin einmal je LLM-Interaktion aufruft:
+
+```ts
+const lab = app.plugins.plugins["llm-lab"]?.api;
+lab?.log({ plugin: "vault-retrieval", feature: "chat", model, endpointUrl, messages, content, latencyMs, /* … */ });
+```
+
+Dieser eine Aufruf schreibt eine Zeile in ein rotierendes, nur anhängendes Protokoll — das
+verwendete Modell, die vollständige Nachrichtenliste, die Antwort, die Zeiten und ob der
+Aufruf fehlschlug oder an einer Token-Grenze abgeschnitten wurde. Mehr passiert von selbst
+nicht: LLM Lab ruft kein Modell auf, spricht nicht mit dem Netz und liest oder schreibt
+nichts in deinen Notizen.
+
+## Was es **nicht** tut
+
+- **Es ist kein LLM-Client.** Es schickt nie eine Anfrage an ein Modell oder einen Endpunkt —
+  es zeichnet nur auf, was ein *anderes* Plugin bereits gesendet und empfangen hat.
+- **Es arbeitet nicht allein.** LLM Lab zu installieren, ohne dass ein anderes Plugin seine
+  API aufruft, zeichnet überhaupt nichts auf. Es ist Infrastruktur für Plugin-Autoren, kein
+  eigenständiges Feature für Endnutzer.
+- **Slice 1 liefert keine Bewertungs-Oberfläche, keinen Datensatz-Browser und keinen Export.**
+  Alle drei setzen eine bewertete Datensatz-Schicht voraus, die dieses Release bewusst noch
+  nicht baut — was kommt, steht im Changelog. Derzeit hat LLM Lab genau eine sichtbare
+  Oberfläche: seinen Einstellungs-Tab.
+- **Es findet nicht alles Sensible.** Siehe den Abschnitt unten — das ist die eine Stelle in
+  dieser README, die nicht weich sein darf.
+
+## Funktionsweise
+
+**Was aufgezeichnet wird, und wo.** Jeder Trace landet als eine JSON-Zeile in
+`.obsidian/plugins/llm-lab/traces/YYYY-MM-DD.jsonl` — im Klartext, innerhalb des Vaults, in
+dem das aufzeichnende Plugin installiert ist. Es gibt keine separate Datenbank, kein
+Cache-Verzeichnis außerhalb des Vaults und keinen Netz-Endpunkt, an den etwas gemeldet wird.
+
+Daraus folgt unmittelbar: **ob dieser Ordner gesynct oder gesichert wird, entscheidet allein
+die Konfiguration deines Vaults, nicht LLM Lab.** Spiegelt dein Sync-Setup
+`.obsidian/plugins/` (oder sicherst du den ganzen Vault), wandern die Trace-Dateien dorthin,
+wohin dieses Setup ohnehin alles schickt. LLM Lab fügt keinen Sync-Mechanismus hinzu — und
+nimmt sich von deinem bestehenden auch nicht aus.
+
+Bevor etwas geschrieben wird, sucht ein Maskierungslauf nach **Bearer-Token, die wörtlich im
+aufgezeichneten Text auftauchen** (`Bearer <token>`), und ersetzt sie — dieses Muster ist real
+und läuft immer. **Endpunkt-API-Schlüssel werden derzeit nicht durch exakte Übereinstimmung
+maskiert, und das ist eine bekannte Lücke in Slice 1, keine Design-Entscheidung:** die
+Schlüssel-Maskierung ist mit einer permanent leeren Schlüsselliste verdrahtet (`main.ts`), und
+`plugin.api.log()` bietet einem aufrufenden Nachbarplugin kein Feld, über das es seinen
+eigenen Schlüssel übergeben könnte. Was das schließen würde, steht in
+[`AGENTS.md`](AGENTS.md) § „Bekannte Lücken in Slice 1". Getrennt davon — und nur wenn die
+strengere Einstellung „Personenbezogenes auch im rohen Trace maskieren" eingeschaltet ist
+(Standard: aus) — läuft ein zweiter Durchgang über die Nachrichten- und Antworttexte:
+
+**Die Maskierung findet Muster. Sie ist bewusst nicht darauf angesetzt, Bedeutung zu finden.**
+Konkret erkennt sie:
+
+- E-Mail-Adressen
+- IBANs
+- Telefonnummern
+- Zugangsdaten in einer URL (`user:pass@host`)
+
+und ersetzt jedes durch einen nummerierten Platzhalter (`[EMAIL_1]`, `[IBAN_1]`, …), der über
+alle Textfelder **eines** Records hinweg gleich bleibt — dieselbe Adresse bekommt im Prompt
+und in der Antwort dieselbe Nummer.
+
+**Sie findet *nicht*, und wird per Mustererkennung nie finden:**
+
+- Namen
+- Anschriften
+- medizinische oder andere Diagnosen
+- Beziehungen zwischen Personen („meine Tochter", „unser Steuerberater")
+
+Enthält ein Gespräch so etwas — und ein System-Prompt oder ein aus deinen eigenen Notizen
+zusammengestellter RAG-Kontext kann das durchaus —, wird es standardmäßig exakt so
+aufgezeichnet, wie es dasteht, in der rohen Trace-Datei. Der Schalter in den Einstellungen
+dehnt dieselbe, rein musterbasierte Maskierung auch auf den rohen Trace aus, aber die Grenze
+oben bleibt: Es ist kein allgemeiner Anonymisierer und nach keinem Compliance-Standard
+geprüft. Behandle jeden aufgezeichneten Trace als genauso vertraulich wie die Notizen und
+Prompts, aus denen er entstanden ist — dieser Abschnitt existiert, um ein falsches
+Sicherheitsgefühl zu verhindern, nicht um eines zu erzeugen.
+
+**Es wird nichts aufgezeichnet, solange kein Nachbarplugin die API aufruft, und das
+Deinstallieren von LLM Lab ist der Ausschalter.** Es gibt kein Konto, keine Lizenzprüfung und
+keinen Hintergrunddienst, den man abschalten müsste — das Plugin aus einem Vault zu entfernen
+beendet dort sofort jede Aufzeichnung.
+
+## Voraussetzungen
+
+- **Obsidian 1.8.7 oder neuer.** Desktop und mobil — LLM Lab fasst keine Node-API an und ist
+  nicht als desktop-only markiert.
+- **Mindestens ein anderes Plugin, das die API aufruft.** Für sich allein zeichnet LLM Lab
+  nichts auf; es ist Infrastruktur für Plugin-Autoren. Erster Konsument ist
+  [vault-rag](https://github.com/johannes-kaindl/vault-rag).
+- **Kein Netzzugang, kein Konto, kein Modell.** Es muss nichts weiter installiert oder
+  erreichbar sein — nicht einmal das LLM, mit dem deine anderen Plugins sprechen, denn LLM Lab
+  spricht selbst nie mit ihm.
+
+## Installation
+
+### Aus einem Release
+
+`main.js`, `manifest.json` und `styles.css` vom
+[neuesten Release](https://github.com/johannes-kaindl/llm-lab/releases/latest) herunterladen,
+nach `<vault>/.obsidian/plugins/llm-lab/` legen und das Plugin unter
+**Einstellungen → Community-Plugins** aktivieren. LLM Lab ist (noch) **nicht** im
+Plugin-Browser — die Installation ist so oder so manuell.
+
+### Aus dem Quelltext
+
+```bash
+git clone https://git.jkaindl.de/jkaindl/llm-lab
+cd llm-lab
+npm install
+npm run build   # erzeugt main.js
+```
+
+`main.js`, `manifest.json` und `styles.css` nach `<vault>/.obsidian/plugins/llm-lab/` kopieren
+und das Plugin unter **Einstellungen → Community-Plugins** aktivieren.
+
+## Verwendung
+
+Es gibt nichts zu starten und nichts zu klicken. Sobald ein Nachbarplugin die API aufruft,
+läuft die Aufzeichnung von selbst — und die einzigen drei Dinge, die du je mit LLM Lab tust,
+sind diese:
+
+- **Auf die Statusleiste sehen.** Sie zeigt ein Punkt-Symbol und *„Lab: schreibt mit"* oder
+  ein Pause-Symbol und *„Lab: pausiert"*. Symbol **und** Text, nie Farbe allein.
+- **Für diese Sitzung pausieren.** Befehlspalette → **„LLM Lab: Mitschreiben pausieren oder
+  fortsetzen"**. Die Pause wird bewusst nicht gespeichert: Sie endet beim nächsten Start,
+  damit niemand nach einem *„gerade nicht"* wochenlang stumm pausiert bleibt.
+- **Die Traces lesen.** Sie sind schlichtes JSONL in
+  `<vault>/.obsidian/plugins/llm-lab/traces/YYYY-MM-DD.jsonl` — ein Aufruf je Zeile, lesbar mit
+  jedem Editor, mit `jq` oder per Skript:
+
+  ```bash
+  jq -r 'select(.feature == "chat") | [.model, .latencyMs, .ttftMs] | @tsv' \
+    "<vault>/.obsidian/plugins/llm-lab/traces/2026-08-23.jsonl"
+  ```
+
+Das Plugin auszuschalten — oder zu entfernen — beendet die Aufzeichnung in diesem Vault sofort.
+
+## Konfiguration
+
+| Einstellung | Standard | Wirkung |
+|---|---|---|
+| **LLM-Aufrufe mitschreiben** | an | Hauptschalter. Aus wird kein Trace geschrieben, egal wer die API aufruft. |
+| **Traces aufbewahren (Tage)** | 7 | Ältere Trace-Dateien werden bei der Rotation gelöscht. Die heutige Datei nie. |
+| **Maximale Trace-Größe (MB)** | 20 | Überschreiten die aufbewahrten Dateien diese Grenze, werden die ältesten zuerst gelöscht — die heutige ist ausgenommen. |
+| **Diese Features nie mitschreiben** | `settings-probe` | Eine Feature-Kennung je Zeile. Der typische Fall sind die Verbindungstests eines aufrufenden Plugins — Verkehr, der keine echte Interaktion ist. |
+| **Zusätzliche Begriffe maskieren** | *(leer)* | Ein Begriff je Zeile, zusätzlich zu den eingebauten Mustern für E-Mail/IBAN/Telefon/URL-Zugangsdaten — gleich maskiert, mit derselben Platzhalter-Konsistenz. Wirkt nur, solange der Schalter darüber an ist. |
+| **Personenbezogenes auch im rohen Trace maskieren** | aus | Wendet die PII-Maskierung auch auf den rohen Trace an, nicht nur auf einen künftigen bewerteten Datensatz. Standardmäßig aus, weil das Debuggen einer schlechten Antwort sehen muss, was wirklich gesendet wurde. |
+
+## Für Plugin-Autoren
+
+LLM Labs einzige öffentliche Fläche für andere Plugins ist
+`app.plugins.plugins["llm-lab"]?.api`:
+
+```ts
+interface LlmLabApi {
+  readonly apiVersion: number;
+  status(): { apiVersion: number; recording: boolean };
+  log(input: LabLogInput): string; // gibt die Trace-id synchron zurück
+}
+```
+
+`log()` ist bewusst fire-and-forget: Es gibt die vergebene id sofort zurück und schreibt
+asynchron auf die Platte, damit ein Aufrufer mitten im Stream nie ausgebremst oder blockiert
+wird. Die API defensiv lesen (LLM Lab ist womöglich nicht installiert) und `log()` **nie**
+`await`en — es gibt nichts zu erwarten. Der vollständige Vertrag und seine Begründung stehen
+in [`AGENTS.md`](AGENTS.md).
+
+## Mitwirken
+
+Beiträge sind willkommen. Der Arbeitsablauf steht in [CONTRIBUTING.md](CONTRIBUTING.md)
+(test-getrieben, `main` immer grün, Feature-Arbeit in `feat/<name>`, Conventional Commits),
+Architektur und Modul-Konventionen in [AGENTS.md](AGENTS.md). Das kanonische Repository liegt
+auf Forgejo (`git.jkaindl.de/jkaindl/llm-lab`); GitHub (`johannes-kaindl/llm-lab`) ist ein
+Spiegel.
+
+## Lizenz
+
+- **Code:** [AGPL-3.0-or-later](LICENSE). Eine kommerzielle Zweitlizenz ist auf Anfrage verfügbar, falls das AGPL-Copyleft nicht zu deinem Anwendungsfall passt.
+- **Dokumentation und Texte:** [CC BY-SA 4.0](LICENSE-DOCS).
+
+Copyright © 2026 Johannes Kaindl.

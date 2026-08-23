@@ -6,6 +6,8 @@
 [![Docs: CC BY-SA 4.0](https://img.shields.io/badge/docs-CC%20BY--SA%204.0-lightgrey.svg)](https://git.jkaindl.de/jkaindl/llm-lab/src/branch/main/LICENSE-DOCS)
 ![Platform](https://img.shields.io/badge/platform-Obsidian%201.8.7%2B%20·%20desktop%20%26%20mobile-7c3aed)
 
+> Deutsche Fassung: [README.de.md](README.de.md).
+
 ## What it does
 
 Several Obsidian plugins in this workspace talk to local LLMs (a RAG assistant, a chat
@@ -36,9 +38,9 @@ to the network, and does not read or write anything in your notes.
 - **It does not find everything sensitive.** See the section below — this is the one place in
   this README that is not allowed to be soft about it.
 
-## What is recorded, and where
+## How it works
 
-Every trace LLM Lab writes lands as one JSON line in
+**What is recorded, and where.** Every trace LLM Lab writes lands as one JSON line in
 `.obsidian/plugins/llm-lab/traces/YYYY-MM-DD.jsonl` — inside the vault the recording plugin
 is installed in, in plain text. There is no separate database, no cache directory outside the
 vault, and no network endpoint it phones home to.
@@ -89,7 +91,25 @@ false sense of safety, not to create one.
 off switch.** There is no account, no license check, and no background service to disable —
 removing the plugin from a vault stops all recording for that vault immediately.
 
+## Requirements
+
+- **Obsidian 1.8.7 or newer.** Desktop and mobile — LLM Lab touches no Node API and is not
+  marked desktop-only.
+- **At least one other plugin that calls the API.** On its own, LLM Lab records nothing; it
+  is infrastructure for plugin authors. The first consumer is
+  [vault-rag](https://github.com/johannes-kaindl/vault-rag).
+- **No network access, no account, no model.** Nothing else has to be installed or reachable
+  — not even the LLM your other plugins talk to, because LLM Lab never talks to it itself.
+
 ## Install
+
+### From a release
+
+Download `main.js`, `manifest.json` and `styles.css` from the
+[latest release](https://github.com/johannes-kaindl/llm-lab/releases/latest), put them into
+`<vault>/.obsidian/plugins/llm-lab/`, and enable the plugin under
+**Settings → Community plugins**. LLM Lab is **not** in the community plugin browser (yet) —
+this is a manual install either way.
 
 ### From source
 
@@ -100,11 +120,31 @@ npm install
 npm run build   # produces main.js
 ```
 
-Copy `main.js`, `manifest.json` and `styles.css` into `<vault>/.obsidian/plugins/llm-lab/` and enable the
-plugin under **Settings → Community plugins**. A community-plugin listing and prebuilt
-releases are not available yet — this is a pre-release, source-only plugin.
+Copy `main.js`, `manifest.json` and `styles.css` into `<vault>/.obsidian/plugins/llm-lab/` and
+enable the plugin under **Settings → Community plugins**.
 
-## Settings
+## Usage
+
+There is nothing to start and nothing to click. Once a sibling plugin calls the API, recording
+happens on its own — and the only three things you ever do with LLM Lab are these:
+
+- **Check the status bar.** It shows a dot icon and *"Lab: recording"*, or a pause icon and
+  *"Lab: paused"*. Icon **and** text, never colour alone.
+- **Pause for this session.** Command palette → **"LLM Lab: pause or resume recording"**. The
+  pause is deliberately not persisted: it ends at the next restart, so nobody stays silently
+  paused for weeks after a *"not right now."*
+- **Read the traces.** They are plain JSONL in
+  `<vault>/.obsidian/plugins/llm-lab/traces/YYYY-MM-DD.jsonl` — one call per line, readable
+  with any editor, `jq`, or a script:
+
+  ```bash
+  jq -r 'select(.feature == "chat") | [.model, .latencyMs, .ttftMs] | @tsv' \
+    "<vault>/.obsidian/plugins/llm-lab/traces/2026-08-23.jsonl"
+  ```
+
+Turning the plugin off — or removing it — stops all recording for that vault immediately.
+
+## Configuration
 
 | Setting | Default | Effect |
 |---|---|---|
