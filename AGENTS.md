@@ -233,11 +233,14 @@ npm run dev                       # esbuild watch
 npm run build                     # tsc --noEmit + esbuild --production
 npm run typecheck                 # tsc --noEmit
 npm run typecheck:test            # tsc -p tsconfig.test.json --noEmit
+npm run typecheck:scripts         # tsc -p tsconfig.scripts.json --noEmit (nur mit Dach-Checkout)
 npm test                          # vitest run
 npm run lint                      # check-no-inline-disables + eslint src --max-warnings 0
 npm run check:pure                # scripts/check-pure.mjs — src/core darf obsidian nicht importieren
-npm run gate                      # lint + typecheck + typecheck:test + test + check:pure + build
+npm run gate                      # lint + typecheck + typecheck:test + typecheck:scripts + test + check:pure + build
 OBSIDIAN_PLUGIN_DIR=… npm run deploy   # build + main.js/manifest.json/styles.css ins Vault-Plugin-Verzeichnis
+STAGING_VAULTS_DIR=… npm run smoke:gui -- --setup         # Pruef-Vault aus docs/images/fixture/ bauen
+STAGING_VAULTS_DIR=… npm run smoke:gui -- --vault llm-lab # 23 Pruefpunkte gegen ein laufendes Obsidian
 npm run version-bump / preflight / release   # delegieren ans zentrale ../tools/release/ (Dach)
 ```
 
@@ -247,6 +250,13 @@ npm run version-bump / preflight / release   # delegieren ans zentrale ../tools/
 - **TDD** (`superpowers:test-driven-development`): der reine Kern wird test-first gebaut.
 - **Tests:** vitest, Node-Umgebung — `src/core/` braucht keinen DOM-Mock, weil es kein DOM
   berührt. Nach jeder Änderung müssen alle Tests grün bleiben.
+- **GUI-Smoke (CORE-TEST-02 b):** `scripts/gui-smoke.ts` prüft gegen ein **laufendes**
+  Obsidian, was gegen einen Mock strukturell nicht prüfbar ist — allen voran den Datei-Weg
+  (`vault_sink.ts`) und die Rotation, die daran hängt, dass `adapter.stat()` unter
+  `.obsidian/` eine Größe liefert. Prüfpunkte, Aufruf und Durchlauf-Vermerke stehen in
+  `docs/SMOKE.md`; die CDP-Brücke kommt zentral aus `../tools/obsidian-cdp/` und wird
+  importiert, nie vendored. Wer `vault_sink.ts`, `rotation.ts`, `main.ts::renderStatus` oder
+  die Zeilen-Reihenfolge im Settings-Tab anfasst, fährt ihn — dort misst keine vitest-Suite mit.
 - **i18n:** nutzersichtbare Strings via `t()` (`src/vendor/kit/i18n.ts`), EN kanonisch + DE.
   **Nie ein `t()`-Aufruf auf Modul-Ebene oder in einem Klassenfeld** — `setLang()` läuft in
   `onload`, nach der Modul-Auswertung; ein `t()` davor friert die Sprache still auf den
