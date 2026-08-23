@@ -81,7 +81,15 @@ Am 2026-08-23 einmalig von Hand gegen den echten Konsumenten gefahren — `vault
 (Branch `feat/llm-lab-consumer`, 0.25.0) im selben Vault, LM Studio als Chat-Endpunkt
 (CORS aktiv, aus dem Renderer gemessen), Ollama `qwen3-embedding:8b` für den Index
 (5 Notizen). Nicht automatisiert: die Prüfpunkte gehören dem Konsumenten und damit in
-`vault-rag/scripts/gui-smoke.ts`, nicht hierher.
+`vault-rag/scripts/gui-smoke.ts`, nicht hierher. Als Task dort abgelegt.
+
+⚠️ **Der Prüf-Vault trägt `vault-retrieval` nur so lange, bis jemand `--setup` fährt.** Das
+Fixture aktiviert bewusst **nur** `llm-lab` (sonst malen fremde Plugins in jede Messung und in
+jedes spätere Bild). Wer die Konsumenten-Schritte wiederholen will, deployt vault-rag erneut in
+`~/StagingVaults/llm-lab/.obsidian/plugins/vault-retrieval/` und aktiviert es im laufenden
+Obsidian — `app.plugins.loadManifests()` **vor** `enablePlugin`, sonst schlägt das Aktivieren
+ohne Fehlermeldung fehl (Obsidian liest die Manifeste beim Start). Ebenso wirkt
+`smartApplyEnabled` erst nach einem Plugin-Reload — das Panel wird beim Laden aufgebaut.
 
 | Schritt | Ergebnis |
 |---|---|
