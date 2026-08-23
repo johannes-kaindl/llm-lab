@@ -169,3 +169,22 @@ describe("TraceStore", () => {
     await expect(store.rotate()).resolves.toBeUndefined();
   });
 });
+
+describe("TraceStore — Schluessel aus dem Aufruf", () => {
+  it("maskiert einen mitgelieferten Schluessel im TATSAECHLICH geschriebenen Text", async () => {
+    const { sink, written } = fakeSink();
+    const store = new TraceStore(sink, "base", limits, () => "2026-08-23");
+
+    const schluessel = "sk-lokal-0123456789abcdef";
+    const record: TraceRecord = {
+      ...rec,
+      messages: [{ role: "user", content: `token ist ${schluessel}` }],
+      response: { content: `echo ${schluessel}` },
+    };
+    await store.writeNow(record, { secrets: [schluessel] });
+
+    const text = written.map((w) => w.data).join("");
+    expect(text).not.toContain(schluessel);
+    expect(text).toContain("••••");
+  });
+});
