@@ -21,7 +21,15 @@ export function redactSecrets(text: string, keys: string[]): string {
   for (const raw of keys) {
     const key = raw.trim();
     if (!key || key.length < MIN_KEY_LENGTH) continue;
-    out = out.replace(new RegExp(escapeRegExp(key), "g"), MASK);
+    // Zwei Nadeln: die rohe Form (fuer direkte Aufrufe auf unserialisiertem Text) UND die
+    // JSON-escapte Form (fuer den Aufruf ueber redactRecordSecrets — dort steht ein Schluessel
+    // mit `"`, `\` oder Zeilenumbruch serialisiert anders da, und die rohe Suche faende ihn
+    // nie). Nur zusaetzlich, nicht statt: keine der beiden ersetzt die andere.
+    const escaped = JSON.stringify(key).slice(1, -1);
+    const needles = escaped === key ? [key] : [key, escaped];
+    for (const needle of needles) {
+      out = out.replace(new RegExp(escapeRegExp(needle), "g"), MASK);
+    }
   }
   return out.replace(BEARER, `$1${MASK}`);
 }
