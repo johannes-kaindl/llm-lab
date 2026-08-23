@@ -55,7 +55,7 @@ export function createLlmLabApi(deps: ApiDeps): LlmLabApi {
       // Aufrufer einzeln.
       const id = deps.newId();
       try {
-        if (!shouldLog(input.feature, deps.paused(), deps.settings())) return id;
+        if (!shouldLog(input, deps.paused(), deps.settings())) return id;
         const settings = deps.settings();
         deps.store().write(buildTraceRecord({ ...input, id, ts: deps.now() }), {
           secrets: deps.secrets(),

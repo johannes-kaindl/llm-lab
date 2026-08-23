@@ -54,9 +54,22 @@ export function pathsExcluded(paths: string[] | undefined, s: LabSettings): bool
   return s.strictFolderExclusion ? paths.some(trifft) : paths.every(trifft);
 }
 
+/** Was fuer die Ja/Nein-Entscheidung gebraucht wird — bewusst nicht der ganze
+ *  `LabLogInput`: die Entscheidung gehoert in den obsidian-freien Kern. */
+export interface LogDecisionInput {
+  feature: string;
+  contextPaths?: string[];
+}
+
 /** `paused` ist Sitzungszustand, keine Einstellung: die Pause soll beim naechsten Start
- *  von selbst enden, damit niemand wochenlang stumm mitlaeuft, ohne es zu merken. */
-export function shouldLog(feature: string, paused: boolean, s: LabSettings): boolean {
+ *  von selbst enden, damit niemand wochenlang stumm mitlaeuft, ohne es zu merken.
+ *
+ *  Beide Ausschlussarten stehen bewusst in EINER Funktion. Zwei getrennte, die jeder
+ *  Aufrufer selbst kombinieren muss, sind die Fehlerklasse, bei der eine Schicht
+ *  spaeter vergessen wird. Auswertung kurzschliessend in dieser Reihenfolge:
+ *  enabled → paused → feature → Pfade. */
+export function shouldLog(input: LogDecisionInput, paused: boolean, s: LabSettings): boolean {
   if (!s.enabled || paused) return false;
-  return !s.excludedFeatures.includes(feature);
+  if (s.excludedFeatures.includes(input.feature)) return false;
+  return !pathsExcluded(input.contextPaths, s);
 }

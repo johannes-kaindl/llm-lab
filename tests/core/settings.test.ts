@@ -13,21 +13,34 @@ describe("DEFAULT_SETTINGS", () => {
 
 describe("shouldLog", () => {
   it("schweigt, solange pausiert ist", () => {
-    expect(shouldLog("chat", true, DEFAULT_SETTINGS)).toBe(false);
+    expect(shouldLog({ feature: "chat" }, true, DEFAULT_SETTINGS)).toBe(false);
   });
 
   it("schweigt, wenn das Plugin abgeschaltet ist", () => {
-    expect(shouldLog("chat", false, { ...DEFAULT_SETTINGS, enabled: false })).toBe(false);
+    expect(shouldLog({ feature: "chat" }, false, { ...DEFAULT_SETTINGS, enabled: false })).toBe(
+      false,
+    );
   });
 
   it("schweigt fuer ausgeschlossene Features", () => {
     const s = { ...DEFAULT_SETTINGS, excludedFeatures: ["settings-probe"] };
-    expect(shouldLog("settings-probe", false, s)).toBe(false);
-    expect(shouldLog("chat", false, s)).toBe(true);
+    expect(shouldLog({ feature: "settings-probe" }, false, s)).toBe(false);
+    expect(shouldLog({ feature: "chat" }, false, s)).toBe(true);
   });
 
   it("schreibt im Normalfall mit", () => {
-    expect(shouldLog("chat", false, DEFAULT_SETTINGS)).toBe(true);
+    expect(shouldLog({ feature: "chat" }, false, DEFAULT_SETTINGS)).toBe(true);
+  });
+
+  it("schweigt, wenn ein beteiligter Pfad ausgeschlossen ist", () => {
+    const s = { ...DEFAULT_SETTINGS, excludedFolders: ["Privat"] };
+    expect(shouldLog({ feature: "chat", contextPaths: ["Privat/a.md"] }, false, s)).toBe(false);
+    expect(shouldLog({ feature: "chat", contextPaths: ["Notizen/a.md"] }, false, s)).toBe(true);
+  });
+
+  it("schreibt ohne contextPaths weiterhin mit, auch bei konfiguriertem Ordner-Ausschluss", () => {
+    const s = { ...DEFAULT_SETTINGS, excludedFolders: ["Privat"] };
+    expect(shouldLog({ feature: "chat" }, false, s)).toBe(true);
   });
 });
 
