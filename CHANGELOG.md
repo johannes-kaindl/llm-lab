@@ -6,8 +6,6 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
-## [0.1.0] — 2026-08-22
-
 ### Added
 
 - **Slice 1: record, redact, rotate.** LLM Lab exposes `plugin.api.log(record)` to sibling
