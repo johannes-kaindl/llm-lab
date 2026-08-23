@@ -3,8 +3,9 @@ import { shouldLog, type LabSettings } from "./core/settings";
 import type { TraceStore } from "./core/trace_store";
 
 /** Version des oeffentlichen Vertrags. Wird bei jeder brechenden Aenderung erhoeht;
- *  Konsumenten pruefen sie, bevor sie sich auf die Form verlassen. */
-export const LLM_LAB_API_VERSION = 1;
+ *  Konsumenten pruefen sie, bevor sie sich auf die Form verlassen.
+ *  2 (2026-08-23): `secrets` und `contextPaths` auf LabLogInput. */
+export const LLM_LAB_API_VERSION = 2;
 
 export interface LabStatus {
   apiVersion: number;
@@ -13,7 +14,14 @@ export interface LabStatus {
 }
 
 /** Was ein Konsument uebergibt. `id` und `ts` vergibt das Lab. */
-export type LabLogInput = Omit<TraceInput, "id" | "ts">;
+export type LabLogInput = Omit<TraceInput, "id" | "ts"> & {
+  /** Endpunkt-Schluessel des Aufrufers. NUR Maskierungsliste — wandert nie in den
+   *  Record. Optional: ein Konsument ohne Auth soll kein Dummy-Feld fuellen. */
+  secrets?: string[];
+  /** Vault-Pfade der Notizen, deren Inhalt in diesen Aufruf eingeflossen ist.
+   *  Grundlage des Ordner-Filters; fehlt das Feld, greift der Filter nicht. */
+  contextPaths?: string[];
+};
 
 /** Vertrag, den llm-lab anderen Obsidian-Plugins als `plugin.api` anbietet.
  *  Zugriff: `app.plugins.plugins["llm-lab"]?.api` (defensiv lesen). */
@@ -57,8 +65,16 @@ export function createLlmLabApi(deps: ApiDeps): LlmLabApi {
       try {
         if (!shouldLog(input, deps.paused(), deps.settings())) return id;
         const settings = deps.settings();
-        deps.store().write(buildTraceRecord({ ...input, id, ts: deps.now() }), {
-          secrets: deps.secrets(),
+        // `secrets` und `contextPaths` sind Steuerdaten DIESES Aufrufs, kein
+        // Record-Inhalt — explizit heraustrennen, statt darauf zu vertrauen, dass
+        // buildTraceRecord sie ohnehin ignoriert, weil es Feld fuer Feld baut. Ein
+        // spaeteres `...input`-Spread im Builder waere sonst ein stiller Leak.
+        // (`contextPaths` ist ein Rest-Sibling und deshalb fuer no-unused-vars kein Befund.)
+        const { secrets: aufrufSchluessel, contextPaths, ...traceInput } = input;
+        deps.store().write(buildTraceRecord({ ...traceInput, id, ts: deps.now() }), {
+          // Vereinigen, nicht ersetzen: `deps.secrets()` ist die Stelle, an der spaeter
+          // eine im Lab konfigurierte Schluesselliste andockt.
+          secrets: [...deps.secrets(), ...(aufrufSchluessel ?? [])],
           redactPii: settings.redactPiiInTrace,
           piiTerms: settings.customPiiTerms,
         });

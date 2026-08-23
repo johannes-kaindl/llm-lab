@@ -59,7 +59,7 @@ describe("LlmLabApi", () => {
 
   it("status() ist synchron und netzfrei", () => {
     const s = makeApi().api.status();
-    expect(s).toEqual({ apiVersion: 1, recording: true });
+    expect(s).toEqual({ apiVersion: LLM_LAB_API_VERSION, recording: true });
   });
 
   it("verdrahtet redactPiiInTrace/customPiiTerms in die WriteOptions des Stores", () => {
@@ -97,5 +97,45 @@ describe("LlmLabApi", () => {
     }).not.toThrow();
     expect(typeof id).toBe("string");
     expect(write).not.toHaveBeenCalled();
+  });
+});
+
+describe("LabLogInput — die Slice-2-Felder", () => {
+  it("meldet Vertragsversion 2", () => {
+    expect(LLM_LAB_API_VERSION).toBe(2);
+  });
+
+  it("schreibt weder secrets noch contextPaths in den Record", () => {
+    const { api, write } = makeApi();
+    api.log({ ...input, secrets: ["sk-geheim-0123456789"], contextPaths: ["Notizen/a.md"] });
+    const geschrieben = JSON.stringify(write.mock.calls[0]?.[0]);
+    expect(geschrieben).not.toContain("sk-geheim-0123456789");
+    expect(geschrieben).not.toContain("Notizen/a.md");
+    expect(geschrieben).not.toContain("secrets");
+    expect(geschrieben).not.toContain("contextPaths");
+  });
+
+  it("reicht die Aufruf-Schluessel als Maskierungsliste an den Store durch", () => {
+    const { api, write } = makeApi();
+    api.log({ ...input, secrets: ["sk-geheim-0123456789"] });
+    expect(write.mock.calls[0]?.[1]?.secrets).toContain("sk-geheim-0123456789");
+  });
+
+  it("vereinigt Lab-eigene und Aufruf-Schluessel, statt sie zu ersetzen", () => {
+    const { api, write } = makeApi({ secrets: () => ["lab-eigener-schluessel"] });
+    api.log({ ...input, secrets: ["sk-vom-aufrufer-01234"] });
+    expect(write.mock.calls[0]?.[1]?.secrets).toEqual(
+      expect.arrayContaining(["lab-eigener-schluessel", "sk-vom-aufrufer-01234"]),
+    );
+  });
+
+  it("schreibt nichts, wenn ein beteiligter Pfad ausgeschlossen ist", () => {
+    const { api, write } = makeApi({
+      settings: () => ({ ...DEFAULT_SETTINGS, excludedFolders: ["Privat"] }),
+    });
+    const id = api.log({ ...input, contextPaths: ["Privat/Tagebuch.md"] });
+    expect(write).not.toHaveBeenCalled();
+    // Die id kommt trotzdem: der Vertrag sagt „log() gibt immer eine id zurueck".
+    expect(id).toBe("id-1");
   });
 });
