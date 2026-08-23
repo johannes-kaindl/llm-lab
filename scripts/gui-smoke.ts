@@ -107,6 +107,8 @@ interface Settings {
   excludedFeatures: string[];
   customPiiTerms: string[];
   redactPiiInTrace: boolean;
+  excludedFolders: string[];
+  strictFolderExclusion: boolean;
 }
 
 async function main(): Promise<void> {
@@ -413,6 +415,53 @@ async function main(): Promise<void> {
     record("Ein Bearer-Token im aufgezeichneten Text wird maskiert",
       Boolean(bearerZeile) && !bearerZeile?.includes(token) && Boolean(bearerZeile?.includes("Bearer ••••")),
       bearerZeile ? (bearerZeile.includes(token) ? "Token steht im Klartext auf der Platte" : "Bearer •••• geschrieben") : "keine Zeile gefunden");
+
+    // --- 11b. Aufruf-Schluessel: exakte Maskierung (die Slice-1-Luecke) -----
+    const apiKey = "sk-smoke-endpunkt-9876543210";
+    const keyId = await cdp.evaluate<string>(logRuf("secret-probe",
+      `{ secrets: ["${apiKey}"], content: "der Server antwortete mit ${apiKey}" }`));
+    const keyZeile = await pollUntil<string>(cdp, `
+      const t = await app.vault.adapter.read(${JSON.stringify(heuteDatei)});
+      return t.split("\\n").filter(Boolean).find(l => l.includes(${JSON.stringify(keyId)})) || null;
+    `, 15_000, 500);
+    record("Ein per log() mitgelieferter Endpunkt-Schluessel wird exakt maskiert",
+      Boolean(keyZeile) && !keyZeile?.includes(apiKey) && Boolean(keyZeile?.includes("••••")),
+      keyZeile ? (keyZeile.includes(apiKey) ? "Schluessel steht im Klartext auf der Platte" : "maskiert") : "keine Zeile gefunden");
+
+    record("Der mitgelieferte Schluessel steht selbst nicht im Record",
+      Boolean(keyZeile) && !keyZeile?.includes("secrets"),
+      keyZeile?.includes("secrets") ? "Feld `secrets` auf der Platte" : "kein secrets-Feld");
+
+    // --- 11c. Ordner-Filter: erst die Gegenprobe, dann die Abwesenheit ------
+    await cdp.evaluate(`
+      const p = app.plugins.plugins[${JSON.stringify(PLUGIN_ID)}];
+      p.settings.excludedFolders = ["Privat"];
+      p.settings.strictFolderExclusion = true;
+      await p.saveSettings(); return true;
+    `);
+
+    // Gegenprobe zuerst: ein NICHT ausgeschlossener Pfad muss ankommen — sonst
+    // beweist die Abwesenheit darunter nur, dass gerade gar nichts geschrieben wird.
+    const offenId = await cdp.evaluate<string>(logRuf("folder-open",
+      `{ contextPaths: ["Notizen/oeffentlich.md"] }`));
+    const offenZeile = await pollUntil<string>(cdp, `
+      const t = await app.vault.adapter.read(${JSON.stringify(heuteDatei)});
+      return t.split("\\n").filter(Boolean).find(l => l.includes(${JSON.stringify(offenId)})) || null;
+    `, 15_000, 500);
+    record("Ein Pfad ausserhalb der ausgeschlossenen Ordner wird mitgeschrieben",
+      Boolean(offenZeile), offenZeile ? "Zeile geschrieben" : "keine Zeile — der Filter greift zu breit");
+
+    const vorFilter = await zeilenBei();
+    await cdp.evaluate(logRuf("folder-blocked", `{ contextPaths: ["Privat/Tagebuch.md"] }`));
+    await new Promise((r) => setTimeout(r, 600));
+    const nachFilter = await zeilenBei();
+    record("Ein Pfad aus einem ausgeschlossenen Ordner erzeugt keinen Record",
+      nachFilter === vorFilter, `${vorFilter} → ${nachFilter} Zeilen`);
+
+    await cdp.evaluate(`
+      const p = app.plugins.plugins[${JSON.stringify(PLUGIN_ID)}];
+      p.settings.excludedFolders = []; await p.saveSettings(); return true;
+    `);
 
     // --- 12. PII: aus per Default, record-weit konsistent wenn an -----------
     const mail = "smoke.person@example.org";

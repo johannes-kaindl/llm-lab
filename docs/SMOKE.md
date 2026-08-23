@@ -32,7 +32,7 @@ npm run smoke:gui -- --vault llm-lab
 `--keep` lässt Einstellungen und erfundene Trace-Dateien stehen, `--ignore-deploy` übergeht
 den Hash-Abgleich Arbeitsbaum ↔ Vault.
 
-## Prüfpunkte (28)
+## Prüfpunkte (32)
 
 | # | Prüft | Entspricht Handover-Schritt |
 |---|---|---|
@@ -46,11 +46,22 @@ den Hash-Abgleich Arbeitsbaum ↔ Vault.
 | 14 | Ausgeschlossenes Feature (`settings-probe`) wird nicht mitgeschrieben | 10 (ohne Konsument) |
 | 15 | Hauptschalter aus: nichts geschrieben, `status()` sagt es | — |
 | 16 | Bearer-Token im aufgezeichneten Text wird maskiert | — |
+| 16b–16c | Per `log()` mitgelieferter Endpunkt-Schlüssel wird exakt maskiert; der Schlüssel selbst steht nicht im Record | — |
+| 16d–16e | Ordner-Filter: ein nicht ausgeschlossener Pfad wird mitgeschrieben (Gegenprobe zuerst) · ein ausgeschlossener Pfad erzeugt keinen Record | — |
 | 17–18 | PII per Default im Klartext (dokumentierte Asymmetrie); eingeschaltet record-weit **derselbe** Platzhalter | — |
 | 19–21 | Settings-Tab: PII-Schalter über dem Feld, das nur mit ihm wirkt · Ablageort im Klartext · Grenzen der Maskierung sichtbar | 5 |
 | 22–26 | Deklarative Settings-API (s. unten) | — |
 | 27 | `log()` wirft auch bei fehlerhaftem Input nicht | — |
 | 28 | Ohne aktives Lab findet ein Konsument nichts und bricht nicht | 11 (ohne Konsument) |
+
+Die vier neuen Punkte (16b–16e, Slice-2-Vertragserweiterung) sitzen bewusst direkt nach dem
+Bearer-Punkt (16), nicht am Ende der Liste: sie prüfen dieselbe Zeile im Vertrag (Schlüssel-
+Maskierung, jetzt mit echter Schlüsselliste statt der leeren aus Slice 1) bzw. den neuen
+Ordner-Filter. **Reihenfolge innerhalb der vier ist Absicht:** die Gegenprobe (16d, ein nicht
+ausgeschlossener Pfad kommt an) steht vor der Abwesenheitsmessung (16e, ein ausgeschlossener
+Pfad erzeugt nichts) — ein Punkt, der Abwesenheit misst, muss vorher belegen, dass unter den
+gleichen Bedingungen überhaupt geschrieben würde, sonst ist er auch dann grün, wenn gerade gar
+nichts funktioniert.
 
 ### Die fünf Punkte zur deklarativen Settings-API (22–26)
 
@@ -93,6 +104,8 @@ anderen Schicht überdauert.
 |---|---|---|---|
 | 2026-08-23 | 1.13.7 (Vault `llm-lab`, Oberfläche de) | **23/23** | **19/23** mit vier eingebauten Defekten — genau die erwarteten Punkte rot, kein anderer fiel mit |
 | 2026-08-23 | 1.13.7 (Vault `llm-lab`, Oberfläche de) | **28/28** nach der Settings-API-Migration | **24/28** gegen den 0.1.0-Stand aus git (gebaut und deployt, derselbe neue Treiber): 22, 24, 25 und 26 rot, kein anderer fiel mit. Punkt 23 blieb erwartungsgemäß grün (s. Warnung oben). Punkt 26 trägt zusätzlich eine Gegenprobe im selben Lauf: Suchbegriff aus der eigenen Definition → 1 Treffer, Unsinn-Begriff → 0 |
+| 2026-08-23 | 1.13.7 (Vault `llm-lab`, Oberfläche de) | **28/28 grün** · **Baseline vor dem Treiber-Umbau der Slice-2-Vertragserweiterung** (mit den Kernänderungen, Treiber noch unverändert). Festgehalten, damit der Lauf nach dem Umbau von „anders grün" unterscheidbar bleibt. | — |
+| 2026-08-23 | 1.13.7 (Vault `llm-lab`, Oberfläche de) | **31/32** nach den vier neuen Prüfpunkten (16b–16e) für Schlüssel-Maskierung und Ordner-Filter — alle vier grün, die restlichen 27 der 28 alten Punkte unverändert grün. **Ein Befund, keine Nebenwirkung dieses Tasks:** Punkt 1 („Anbieter-Vertrag haengt am Plugin-Objekt … apiVersion, status, log") ist rot — der Treiber prüft `apiVersion === 1`, das Plugin liefert seit `431c23c` (`feat(api)!: apiVersion 2 — secrets und contextPaths auf LabLogInput`) `apiVersion 2`. Der Treiber wurde in dieser Session bewusst NICHT angepasst (Auftrag: keine Anpassung des Prüfpunkts an vorgefundenes Verhalten, kein Anfassen von Produktivcode) — Nacharbeit ist, die Konstante im Treiber auf `2` zu heben. | — |
 
 Die Gegenprobe baute gleichzeitig ein: `vault_sink.list` liefert `bytes: 0` (der stille
 `stat()`-Fehlerfall) → Punkt 11 rot; Lucide-Icon `circle-dott` → Punkt 3 rot; `shouldLog`
