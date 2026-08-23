@@ -179,6 +179,26 @@ async function main(): Promise<void> {
     if (!vorhanden.ok) {
       throw new Error(`Plugin "${PLUGIN_ID}" ist im Vault "${vaultName}" nicht aktiv — in den Community-Plugins einschalten.`);
     }
+
+    // Der Hash-Guard oben vergleicht nur DATEIEN (Arbeitsbaum vs. Vault), nicht was Obsidian
+    // gerade GELADEN hat: das Plugin-Objekt im laufenden Fenster stammt vom letzten
+    // enablePlugin (typischerweise Vault-Oeffnen), nicht vom letzten Deploy. Ohne diesen
+    // Reload hier pruefen die fruehen Punkte (allen voran Pruefpunkt 1, der Vertrag) also
+    // moeglicherweise einen VERALTETEN Plugin-Stand, obwohl main.js laengst aktuell ist —
+    // gemessen 2026-08-23: apiVersion 1 im geladenen Objekt, obwohl main.js bereits
+    // apiVersion 2 baute. Der Reload-Mechanismus selbst ist derselbe wie in Pruefpunkt 4
+    // weiter unten (disablePlugin/enablePlugin + pollUntil auf status()) — hier zieht er nur
+    // vor den ersten inhaltlichen Pruefpunkt.
+    await cdp.evaluate(`
+      await app.plugins.disablePlugin(${JSON.stringify(PLUGIN_ID)});
+      await app.plugins.enablePlugin(${JSON.stringify(PLUGIN_ID)});
+      return true;
+    `);
+    await pollUntil<{ recording: boolean } | null>(cdp, `
+      const p = app.plugins.plugins[${JSON.stringify(PLUGIN_ID)}];
+      return p && p.api ? p.api.status() : null;
+    `, 15_000, 500);
+
     const base = vorhanden.dir as string;
     const tracesDir = `${base}/traces`;
     const heuteDatei = `${tracesDir}/${heute}.jsonl`;
@@ -205,8 +225,12 @@ async function main(): Promise<void> {
         messages: [{ role: "user", content: "ping" }], content: "pong", latencyMs: 1 });
       return { apiVersion: api.apiVersion, recording: st.recording, logTyp: typeof api.log, ergebnisTyp: typeof r };
     `);
+    // Der Treiber ist selbst ein Konsument dieses Vertrags — genau wie vault-rags
+    // `lab_client.ts` traegt er die apiVersion als eigene Kopie und muss bei jedem Bump von
+    // `LLM_LAB_API_VERSION` (src/plugin_api.ts) manuell nachziehen. Aktueller Stand: 2 (seit
+    // 431c23c, "feat(api)!: apiVersion 2 — secrets und contextPaths auf LabLogInput").
     record("Anbieter-Vertrag haengt am Plugin-Objekt (apiVersion, status, log)",
-      vertrag.apiVersion === 1 && vertrag.recording === true && vertrag.logTyp === "function",
+      vertrag.apiVersion === 2 && vertrag.recording === true && vertrag.logTyp === "function",
       `apiVersion ${String(vertrag.apiVersion)} · recording ${String(vertrag.recording)}`);
     record("log() gibt die id SYNCHRON zurueck (kein Promise)",
       vertrag.ergebnisTyp === "string",
