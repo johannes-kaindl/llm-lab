@@ -523,7 +523,7 @@ async function main(): Promise<void> {
     // in ein Feld, das nichts tut, und haelt sich fuer geschuetzt.
     await cdp.evaluate(`app.setting.open(); app.setting.openTabById(${JSON.stringify(PLUGIN_ID)}); await new Promise(r => setTimeout(r, 700)); return true;`);
     let tabCdp: Cdp | null = cdp;
-    let tab = await cdp.evaluate<{ da: boolean; namen?: string[]; ortText?: string; grenzenSichtbar?: boolean }>(TAB_LESEN(base));
+    let tab = await cdp.evaluate<{ da: boolean; namen?: string[]; ortText?: string; grenzenSichtbar?: boolean; filterGrenzenSichtbar?: boolean }>(TAB_LESEN(base));
     if (!tab.da) {
       // Ab Obsidian 1.13 sind die Einstellungen ein eigenes FENSTER — dann ist das Modal im
       // Workspace-Dokument nicht zu finden, und das sieht wie ein Plugin-Defekt aus.
@@ -545,6 +545,19 @@ async function main(): Promise<void> {
       record("Die Grenzen der Maskierung stehen sichtbar im Tab",
         tab.grenzenSichtbar === true,
         tab.grenzenSichtbar ? "Absatz sichtbar" : "Absatz fehlt oder ist unsichtbar");
+      // Die drei Zeilen des Ordner-Filters (Slice 2), namentlich nachgewiesen — nicht nur
+      // ueber defs.length > 0, das gruen bliebe, wuerden sie aus getSettingDefinitions()
+      // verschwinden. Nativer Pfad hier; der Fallback-Pfad folgt unten in 13b nach
+      // tab.display().
+      record("excludedFolders-Zeile steht am nativen Pfad",
+        namen.some((n) => /Never record notes from these folders|Notizen aus diesen Ordnern nie mitschreiben/.test(n)),
+        `Zeilen: ${namen.join(" | ")}`);
+      record("strictFolderExclusion-Zeile steht am nativen Pfad",
+        namen.some((n) => /Strict folder exclusion|Strenger Ordner-Ausschluss/.test(n)),
+        `Zeilen: ${namen.join(" | ")}`);
+      record("Die render-Hatch der Ordner-Filter-Grenzen steht sichtbar im nativen Pfad",
+        tab.filterGrenzenSichtbar === true,
+        tab.filterGrenzenSichtbar ? "Absatz sichtbar" : "Absatz fehlt oder ist unsichtbar");
     }
     // --- 13b. Deklarative Settings-API: der Store-Posten und was er dem Nutzer bringt ---
     // Gemessen wird im HAUPTfenster, auch wenn die Einstellungen ab 1.13 in einem eigenen
@@ -555,6 +568,7 @@ async function main(): Promise<void> {
       da: boolean; defs?: number; uebernommen?: number; nativeZeilen?: number;
       fallbackZeilen?: number; suchbegriff?: string | null;
       mbGelesen?: number; mbGespeichert?: number; ungueltigVerworfen?: boolean;
+      fallbackNamen?: string[]; fallbackFilterSichtbar?: boolean;
     }>(`
       const tab = app.setting.activeTab
         ?? (app.setting.pluginTabs || []).find(t => t.id === ${JSON.stringify(PLUGIN_ID)});
@@ -576,6 +590,13 @@ async function main(): Promise<void> {
       // ungeprueft und drifted still von der Definitionsliste weg.
       tab.display();
       const fallbackZeilen = tab.containerEl.querySelectorAll(".setting-item").length;
+      // Dieselben drei Ordner-Filter-Zeilen wie am nativen Pfad, jetzt gegen den
+      // display()-Fallback gelesen — namentlich, nicht nur als Zeilenzahl.
+      const fallbackNamen = [...tab.containerEl.querySelectorAll(".setting-item-name")]
+        .map(e => (e.textContent || "").trim()).filter(Boolean);
+      const fallbackFilterAbsatz = [...tab.containerEl.querySelectorAll(".setting-item-description")]
+        .find(p => /folder filter can and cannot see|Ordner-Filter sieht und was nicht|filter only applies to calls|Filter greift nur bei Aufrufen/i.test(p.textContent || ""));
+      const fallbackFilterSichtbar = fallbackFilterAbsatz ? fallbackFilterAbsatz.getClientRects().length > 0 : false;
 
       // Die MB↔Byte-Uebersetzung existiert nur im Host (getControlValue/setControlValue)
       // und in keinem vitest — die Zeile heisst "(MB)", gespeichert werden Bytes.
@@ -590,7 +611,8 @@ async function main(): Promise<void> {
         app.plugins.plugins[${JSON.stringify(PLUGIN_ID)}].settings.keepDays > 0;
 
       return { da: true, defs: defs.length, uebernommen, nativeZeilen, fallbackZeilen,
-               suchbegriff: ersterName, mbGelesen, mbGespeichert, ungueltigVerworfen };
+               suchbegriff: ersterName, mbGelesen, mbGespeichert, ungueltigVerworfen,
+               fallbackNamen, fallbackFilterSichtbar };
     `);
 
     if (!deklarativ.da) {
@@ -622,6 +644,19 @@ async function main(): Promise<void> {
       record("Eine ungueltige Zahl wird auch ohne validate() verworfen (Fallback-Pfad)",
         deklarativ.ungueltigVerworfen === true,
         deklarativ.ungueltigVerworfen ? "keepDays bleibt positiv" : "keepDays wurde zu NaN/0 ueberschrieben");
+
+      // Dieselben drei Ordner-Filter-Zeilen wie am nativen Pfad (oben, 13.), jetzt gegen den
+      // display()-Fallback-Walker gelesen — beide Pfade muessen sie zeigen, nicht nur einer.
+      const fbNamen = deklarativ.fallbackNamen ?? [];
+      record("excludedFolders-Zeile steht am Fallback-Pfad",
+        fbNamen.some((n) => /Never record notes from these folders|Notizen aus diesen Ordnern nie mitschreiben/.test(n)),
+        `Zeilen: ${fbNamen.join(" | ")}`);
+      record("strictFolderExclusion-Zeile steht am Fallback-Pfad",
+        fbNamen.some((n) => /Strict folder exclusion|Strenger Ordner-Ausschluss/.test(n)),
+        `Zeilen: ${fbNamen.join(" | ")}`);
+      record("Die render-Hatch der Ordner-Filter-Grenzen steht sichtbar im Fallback-Pfad",
+        deklarativ.fallbackFilterSichtbar === true,
+        deklarativ.fallbackFilterSichtbar ? "Absatz sichtbar" : "Absatz fehlt oder ist unsichtbar");
     }
 
     // Auffindbarkeit in der Einstellungs-Suche — der eigentliche Nutzen der Migration,
@@ -761,11 +796,17 @@ function TAB_LESEN(base: string): string {
     // im DOM haengen und trotzdem nichts anzeigen.
     const grenzen = [...wurzel.querySelectorAll(".setting-item-description")]
       .find(p => /Masking finds patterns|Die Maskierung findet Muster/.test(p.textContent || ""));
+    // Dritte inhaltlich verbindliche Zeile (Ordner-Filter-Grenzen), gleiche Bauart wie
+    // 'grenzen' oben: eine render-Hatch ohne eigenen Regler, die der native Renderer
+    // stillschweigend uebersaehe, waere sie keine eigene Definition mit Ueberschrift.
+    const filterGrenzen = [...wurzel.querySelectorAll(".setting-item-description")]
+      .find(p => /folder filter can and cannot see|Ordner-Filter sieht und was nicht|filter only applies to calls|Filter greift nur bei Aufrufen/i.test(p.textContent || ""));
     return {
       da: true,
       namen,
       ortText: ort ? (ort.name + " — " + ort.desc) : null,
       grenzenSichtbar: grenzen ? grenzen.getClientRects().length > 0 : false,
+      filterGrenzenSichtbar: filterGrenzen ? filterGrenzen.getClientRects().length > 0 : false,
     };
   `;
 }
