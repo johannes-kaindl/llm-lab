@@ -87,7 +87,7 @@ Am 2026-08-23 einmalig von Hand gegen den echten Konsumenten gefahren — `vault
 |---|---|
 | 6 · Chat | 🟢 eine Zeile `plugin: vault-retrieval`, `feature: chat`, `model`, `endpointHost: localhost:1234`, `latencyMs 38673`, `ttftMs 7489`, `finishReason: stop` |
 | 8 · Umformatieren (LLM) | 🟢 `feature: reformat:to-list`, 8,8 s, `finishReason: stop` — die Notiz blieb unverändert, das Vorschau-Modal wurde ohne Anwenden geschlossen |
-| 9 · Smart Apply | s. Vermerk unten |
+| 9 · Smart Apply | 🟢 `feature: smart-apply`, 105,9 s — und die Zeile erklärt den Lauf besser als das Panel, s. unten |
 | 10 · Endpunkt-Testknopf | 🟢 der Lauf fand statt (Notice „Thinking wird unterdrückt"), **keine** Zeile — `settings-probe` steht ab Werk in der Ausschlussliste |
 | 11 · Lab deaktiviert | 🟢 Chat lief vollständig durch (Sende-Knopf zurück auf „Senden"), Antwort korrekt, keine Notice, **keine** Zeile |
 
@@ -96,6 +96,15 @@ Chat erzeugte eine Zeile mit `error: "Aborted"`, `ttftMs 2060`, `latencyMs 43998
 `response.content: ""`. Der bis zum Abbruch gestreamte Text geht dabei verloren; das ist
 eine Eigenschaft des Konsumenten (`chat_client.ts` meldet im `catch` `content: ""`), nicht
 des Labs, und für die Fehlersuche wäre der Teiltext der interessantere Teil.
+
+**Der Smart-Apply-Lauf ist der beste Beleg dafür, wofür das Lab da ist.** Das Panel zeigte
+keinen Fehler und kein Ergebnis. Die Trace-Zeile sagt, warum: `reasoning` 14.083 Zeichen,
+`content` **leer**, `finishReason: "length"`, kein `ttftMs`. Das Modell hat das gesamte
+Token-Budget (`smartApplyMaxTokens: 4096`) im Denken verbraucht und nie eine Antwort
+begonnen — bei eingeschaltetem Thinking teilen sich Denken und Antwort dieses Budget. Ohne
+Aufzeichnung wäre die Beobachtung „Smart Apply hat nichts gemacht" gewesen. Das ist ein
+Befund am Konsumenten, nicht am Lab; er gehört in **vault-rags** Cockpit und ist dort
+abgelegt.
 
 ### Was die Abnahme über das Datenmodell ergeben hat
 
@@ -108,3 +117,8 @@ abgeschnitten als A" ist das Feld auf diesem Pfad damit wertlos — es gruppiert
 Das ist kein Defekt in Slice 1 (der Hash tut, was der Code sagt), aber eine Annahme, die die
 Bewertungs-Schicht nicht erben darf. Wer Slice 2 baut, braucht entweder einen Hash über den
 **stabilen** Prompt-Anteil oder ein eigenes Feld dafür.
+
+**Es hängt am Pfad, nicht am Konsumenten** — dieselbe Abnahme liefert die Gegenprobe: Smart
+Apply schickt einen System-Prompt ohne Retrieval-Kontext (958 Zeichen), dort ist der Hash
+stabil und tut genau das, was `record.ts` verspricht. Ein Feld, das je nach aufrufendem
+Feature etwas anderes bedeutet, ist deshalb das Problem — nicht ein kaputter Hash.
