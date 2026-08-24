@@ -6,6 +6,8 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.3.0] — 2026-08-24
+
 ### Added
 - `LabLogInput.secrets` — ein aufrufendes Plugin kann seine Endpunkt-Schluessel
   mitgeben; sie werden exakt maskiert und landen nie im Record.
