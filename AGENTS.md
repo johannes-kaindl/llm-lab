@@ -210,7 +210,12 @@ ausgeschlossen sind). Die Entscheidung liegt in `pathsExcluded(paths, settings)`
 `shouldLog(input, paused, settings)` kurzschließend mitgeführt (`enabled` → `paused` →
 `feature` → Pfade) — ein ausgeschlossener Pfad verhindert, dass ein Record überhaupt entsteht.
 **Die Zusage hat eine benannte Grenze, und sie ist gewollt: der Filter greift nur bei Aufrufen,
-deren Plugin `contextPaths` meldet — fail-open.** Fail-closed hieße: sobald ein Ordner
+deren Aufruf `contextPaths` meldet — fail-open.** **Die Grenze läuft je AUFRUF, nicht je
+Plugin** — am 2026-08-24 Ende-zu-Ende gemessen: vault-rags Chat meldet fünf Pfade, wenn
+Kontextnotizen angehängt sind, und **gar keine**, wenn keine beteiligt war (`currentPaths()`
+ist `pinned ∪ autoDocs`). Ein solcher Aufruf wird auch bei ausgeschlossenem Ordner
+mitgeschrieben — korrekt, weil keine Notiz beteiligt ist, aber nicht das, was ein Nutzer aus
+„vault-rag meldet Pfade" schließt. Fail-closed hieße: sobald ein Ordner
 ausgeschlossen ist, verstummt jeder Konsument, der noch keine Pfade liefert. Der Preis ist
 eine Zusage mit Bedingung, und weil das eine Nutzer-Zusage ist, steht die Bedingung im
 Settings-Tab (dritte `render`-Hatch, „Was der Ordner-Filter sieht und was nicht") und in

@@ -112,6 +112,7 @@ anderen Schicht überdauert.
 
 | Datum | Obsidian | Ergebnis | Gegenprobe |
 |---|---|---|---|
+| 2026-08-24 | 1.13.7 (Vault `llm-lab`, Oberfläche de) | **38/38 grün** — Lauf vor dem 0.3.0-Release, nach der Wortlaut-Präzisierung der Ordner-Filter-Grenze (Settings-Text + beide READMEs) | — Text-, keine Struktur-Änderung; die drei `render`-Hatches und beide Renderer-Pfade sind im selben Lauf namentlich nachgewiesen |
 | 2026-08-23 | 1.13.7 (Vault `llm-lab`, Oberfläche de) | **23/23** | **19/23** mit vier eingebauten Defekten — genau die erwarteten Punkte rot, kein anderer fiel mit |
 | 2026-08-23 | 1.13.7 (Vault `llm-lab`, Oberfläche de) | **28/28** nach der Settings-API-Migration | **24/28** gegen den 0.1.0-Stand aus git (gebaut und deployt, derselbe neue Treiber): 22, 24, 25 und 26 rot, kein anderer fiel mit. Punkt 23 blieb erwartungsgemäß grün (s. Warnung oben). Punkt 26 trägt zusätzlich eine Gegenprobe im selben Lauf: Suchbegriff aus der eigenen Definition → 1 Treffer, Unsinn-Begriff → 0 |
 | 2026-08-23 | 1.13.7 (Vault `llm-lab`, Oberfläche de) | **28/28 grün** · **Baseline vor dem Treiber-Umbau der Slice-2-Vertragserweiterung** (mit den Kernänderungen, Treiber noch unverändert). Festgehalten, damit der Lauf nach dem Umbau von „anders grün" unterscheidbar bleibt. | — |
@@ -124,6 +125,39 @@ ignoriert `excludedFeatures` → Punkt 14 rot; PII-Schalter unter das Begriffe-F
 Punkt 19 rot. **Punkt 10 blieb dabei grün** — `adapter.stat()` liefert weiterhin eine Größe,
 nur liest sie niemand mehr. Die beiden Punkte messen also tatsächlich Verschiedenes; das ist
 der Grund, warum die Wirkung (Punkt 11) zusätzlich zur Zahl (Punkt 10) geprüft wird.
+
+## Ende-zu-Ende ueber die Plugin-Grenze — 2026-08-24, 9/9 gruen
+
+**Warum das ein eigener Lauf ist und kein Pruefpunkt im Treiber:** unser GUI-Smoke ruft
+`api.log()` selbst auf, vault-rags ruft ein Lab-**Stub** auf. Beide Treiber ueberspringen damit
+genau die Strecke, die Slice 2 neu verdrahtet hat — vault-rag → Plugin-Grenze → llm-lab → Platte.
+Gefahren im Vault `llm-lab` (beide Plugins echt installiert), mit einem **durchreichenden**
+Spy auf `api.log` (wrappt und ruft das Original), damit die echte Strecke vollstaendig bleibt.
+
+Gemessen: `apiVersion 2` am laufenden Plugin · ein Chat ueber die Oberflaeche erzeugt **eine**
+Trace-Zeile (`plugin=vault-retrieval`, `feature=chat`) · `contextPaths` steht **nicht** im
+geschriebenen Record, obwohl vault-rag fuenf Pfade ueber die Grenze mitschickte (Steuerdatum,
+kein Inhalt — die Zusage haelt) · Gegenprobe mit `excludedFolders: ["Notes"]` und `strict`:
+**keine** neue Zeile, waehrend `api.log()` nachweislich gerufen wurde und der Chat ungestoert
+durchlief (der Filter bremst den Konsumenten nicht).
+
+**Der Lauf hat eine Grenze der Nutzer-Zusage gefunden, die so nirgends stand — und sie sitzt
+im Treiber-Bau, nicht im Produktivcode.** Der erste Versuch meldete „vault-rag schickte KEINE
+contextPaths", und die Gegenprobe schrieb trotz Ausschluss eine Zeile. Ursache: `currentPaths()`
+ist `pinned ∪ autoDocs`, und `autoDocs` fuellt ein 400-ms-Debounce beim Tippen, den `submit()`
+ausdruecklich abbricht. Ein Treiber, der den Text setzt und **sofort** klickt, sendet garantiert
+ohne Kontext — ein Mensch tippt und wartet. Nach dem Warten auf die Kontext-Chips: fuenf Pfade,
+alles gruen.
+
+Zwei Folgerungen ueber diesen Lauf hinaus:
+- **Wer eine Oberflaeche skriptet, muss ihre Debounces mitspielen, nicht ueberholen.** Sonst
+  misst man einen Zustand, den ein Benutzer nie erzeugt — und haelt ihn fuer einen Defekt.
+- **Die Ordner-Filter-Zusage laeuft je AUFRUF, nicht je Plugin.** Ein Chat ohne angehaengte
+  Kontextnotizen meldet keine Pfade und wird deshalb auch bei ausgeschlossenem Ordner
+  mitgeschrieben — korrekt (keine Notiz beteiligt, nichts auszuschliessen), aber die
+  Formulierung im Settings-Tab und in beiden READMEs sprach von *Plugins* und legte damit
+  „vault-rag meldet Pfade, also ist vault-rag abgedeckt" nahe. Wortlaut am 2026-08-24
+  praezisiert.
 
 ## Konsumenten-Abnahme (Handover-Schritte 6, 8, 9, 10, 11)
 

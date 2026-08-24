@@ -39,6 +39,27 @@ describe("redactRecordSecrets", () => {
     expect(out.a).not.toContain(key);
   });
 
+  it("maskiert einen Schluessel mit Backslash (JSON verdoppelt ihn — rohe Nadel matcht nie)", () => {
+    const key = "sk-abc\\def12345";
+    const out = redactRecordSecrets({ a: `key ${key} im Text` }, [key]);
+    expect(out.a).toBe("key •••• im Text");
+    expect(out.a).not.toContain(key);
+  });
+
+  it("maskiert einen Schluessel mit Zeilenumbruch (JSON schreibt \\n als zwei Zeichen)", () => {
+    const key = "sk-abc\ndef12345";
+    const out = redactRecordSecrets({ a: `key ${key} im Text` }, [key]);
+    expect(out.a).toBe("key •••• im Text");
+    expect(out.a).not.toContain(key);
+  });
+
+  it("maskiert einen Schluessel mit Steuerzeichen (Tab)", () => {
+    const key = "sk-abc\tdef12345";
+    const out = redactRecordSecrets({ a: `key ${key} im Text` }, [key]);
+    expect(out.a).toBe("key •••• im Text");
+    expect(out.a).not.toContain(key);
+  });
+
   it("maskiert Schluessel in verschachtelten Message-Arrays (Produktionsform)", () => {
     type MessageArray = { messages: Array<{ role: string; content: string }> };
     const rec: MessageArray = {

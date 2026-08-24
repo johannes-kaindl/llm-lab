@@ -94,9 +94,11 @@ all — no record is even built, so there is nothing to redact afterwards. Subfo
 "Strict folder exclusion" (on by default) means a *single* excluded note is enough to skip the
 call, while turning it off skips a call only when *every* note involved is excluded. **The
 condition, stated plainly because it is a promise with a boundary:** the filter only applies to
-calls whose plugin tells LLM Lab which notes went into them. A plugin that reports no paths is
-recorded as before — the exclusion holds per plugin, not across every plugin, and LLM Lab
-deliberately does not silence callers that cannot report paths yet.
+calls that tell LLM Lab which notes went into them — and **the boundary runs per call, not per
+plugin.** A call that reports no paths is recorded as before, even from a plugin that usually
+does report: in vault-rag's chat, a question sent without context notes attached reports
+nothing, because no note was involved. LLM Lab deliberately does not silence callers that
+cannot report paths.
 
 **Nothing is recorded unless a sibling plugin calls the API, and uninstalling LLM Lab is the
 off switch.** There is no account, no license check, and no background service to disable —

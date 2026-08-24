@@ -23,6 +23,13 @@ All notable changes to this project are documented here. The format follows
   wirkungslos (nur das BEARER-Muster griff) — dokumentiert als „Bekannte Luecke
   in Slice 1", jetzt geschlossen.
 - Der in der Spec (§5.5) verlangte Ordner-Filter fehlte vollstaendig.
+- Die Grenze des Ordner-Filters war je *Plugin* formuliert (Settings-Tab, beide
+  READMEs) und legte damit „Plugin X meldet Pfade, also ist X abgedeckt" nahe.
+  Gemessen laeuft sie je **Aufruf**: derselbe vault-rag-Chat meldet nichts, wenn
+  keine Kontextnotiz angehaengt ist. Wortlaut praezisiert (kein Verhaltens-,
+  ein Zusagen-Fix).
+- Drei Testfaelle fuer die Schluessel-Maskierung ergaenzt (`\`, Zeilenumbruch,
+  Tabulator) — bis dahin deckte nur der Quote-Fall das JSON-Escaping ab.
 
 ## [0.2.0] — 2026-08-23
 

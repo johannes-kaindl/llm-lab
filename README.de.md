@@ -100,10 +100,11 @@ etwas zu redigieren wäre. Unterordner zählen mit. „Strenger Ordner-Ausschlus
 heißt: eine *einzige* ausgeschlossene Notiz genügt, um den Aufruf zu überspringen; aus
 geschaltet entfällt der Aufruf nur, wenn *alle* beteiligten Notizen ausgeschlossen sind.
 **Die Bedingung, klar benannt, weil es eine Zusage mit Grenze ist:** Der Filter greift nur bei
-Aufrufen, deren Plugin dem LLM Lab mitteilt, welche Notizen eingeflossen sind. Ein Plugin, das
-keine Pfade meldet, wird wie bisher mitgeschrieben — der Ausschluss gilt je Plugin, nicht über
-alle Plugins hinweg, und LLM Lab bringt Aufrufer, die noch keine Pfade melden können, bewusst
-nicht zum Schweigen.
+Aufrufen, die dem LLM Lab mitteilen, welche Notizen eingeflossen sind — und **die Grenze läuft
+je Aufruf, nicht je Plugin.** Ein Aufruf ohne Pfade wird wie bisher mitgeschrieben, auch von
+einem Plugin, das sonst meldet: In vault-rags Chat meldet eine Frage ohne angehängte
+Kontextnotizen nichts, weil keine Notiz beteiligt war. LLM Lab bringt Aufrufer, die keine Pfade
+melden können, bewusst nicht zum Schweigen.
 
 **Es wird nichts aufgezeichnet, solange kein Nachbarplugin die API aufruft, und das
 Deinstallieren von LLM Lab ist der Ausschalter.** Es gibt kein Konto, keine Lizenzprüfung und
