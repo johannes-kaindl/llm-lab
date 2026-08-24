@@ -55,12 +55,13 @@ nimmt sich von deinem bestehenden auch nicht aus.
 
 Bevor etwas geschrieben wird, sucht ein Maskierungslauf nach **Bearer-Token, die wörtlich im
 aufgezeichneten Text auftauchen** (`Bearer <token>`), und ersetzt sie — dieses Muster ist real
-und läuft immer. **Endpunkt-API-Schlüssel werden derzeit nicht durch exakte Übereinstimmung
-maskiert, und das ist eine bekannte Lücke in Slice 1, keine Design-Entscheidung:** die
-Schlüssel-Maskierung ist mit einer permanent leeren Schlüsselliste verdrahtet (`main.ts`), und
-`plugin.api.log()` bietet einem aufrufenden Nachbarplugin kein Feld, über das es seinen
-eigenen Schlüssel übergeben könnte. Was das schließen würde, steht in
-[`AGENTS.md`](AGENTS.md) § „Bekannte Lücken in Slice 1". Getrennt davon — und nur wenn die
+und läuft immer. **Auch Endpunkt-API-Schlüssel werden bei jedem Schreibvorgang durch exakte
+Übereinstimmung maskiert:** ein aufrufendes Plugin gibt seine Schlüssel beim Aufruf mit
+(`secrets` in der Aufzeichnungs-API); sie dienen ausschließlich als Maskierungsliste und
+werden nie Teil des Records. **Die Bedingung, die man kennen sollte:** LLM Lab hat keine
+eigene Schlüsselliste — abgedeckt sind nur die Schlüssel, die ein aufrufendes Plugin
+tatsächlich übergibt. Ein Plugin, das keine übergibt, ist wieder allein auf das
+`Bearer`-Muster angewiesen. Getrennt davon — und nur wenn die
 strengere Einstellung „Personenbezogenes auch im rohen Trace maskieren" eingeschaltet ist
 (Standard: aus) — läuft ein zweiter Durchgang über die Nachrichten- und Antworttexte:
 
@@ -91,6 +92,18 @@ oben bleibt: Es ist kein allgemeiner Anonymisierer und nach keinem Compliance-St
 geprüft. Behandle jeden aufgezeichneten Trace als genauso vertraulich wie die Notizen und
 Prompts, aus denen er entstanden ist — dieser Abschnitt existiert, um ein falsches
 Sicherheitsgefühl zu verhindern, nicht um eines zu erzeugen.
+
+**Ganze Ordner lassen sich auch komplett aus dem Protokoll heraushalten.** Trag sie unter
+„Notizen aus diesen Ordnern nie mitschreiben" ein — ein Aufruf, in den eine Notiz daraus
+eingeflossen ist, wird gar nicht erst geschrieben; es entsteht kein Record, an dem später noch
+etwas zu redigieren wäre. Unterordner zählen mit. „Strenger Ordner-Ausschluss" (Standard: an)
+heißt: eine *einzige* ausgeschlossene Notiz genügt, um den Aufruf zu überspringen; aus
+geschaltet entfällt der Aufruf nur, wenn *alle* beteiligten Notizen ausgeschlossen sind.
+**Die Bedingung, klar benannt, weil es eine Zusage mit Grenze ist:** Der Filter greift nur bei
+Aufrufen, deren Plugin dem LLM Lab mitteilt, welche Notizen eingeflossen sind. Ein Plugin, das
+keine Pfade meldet, wird wie bisher mitgeschrieben — der Ausschluss gilt je Plugin, nicht über
+alle Plugins hinweg, und LLM Lab bringt Aufrufer, die noch keine Pfade melden können, bewusst
+nicht zum Schweigen.
 
 **Es wird nichts aufgezeichnet, solange kein Nachbarplugin die API aufruft, und das
 Deinstallieren von LLM Lab ist der Ausschalter.** Es gibt kein Konto, keine Lizenzprüfung und
@@ -160,6 +173,8 @@ Das Plugin auszuschalten — oder zu entfernen — beendet die Aufzeichnung in d
 | **Traces aufbewahren (Tage)** | 7 | Ältere Trace-Dateien werden bei der Rotation gelöscht. Die heutige Datei nie. |
 | **Maximale Trace-Größe (MB)** | 20 | Überschreiten die aufbewahrten Dateien diese Grenze, werden die ältesten zuerst gelöscht — die heutige ist ausgenommen. |
 | **Diese Features nie mitschreiben** | `settings-probe` | Eine Feature-Kennung je Zeile. Der typische Fall sind die Verbindungstests eines aufrufenden Plugins — Verkehr, der keine echte Interaktion ist. |
+| **Notizen aus diesen Ordnern nie mitschreiben** | *(leer)* | Ein Ordnerpfad je Zeile, Unterordner zählen mit. Ein Aufruf, in den eine Notiz daraus eingeflossen ist, wird nicht geschrieben. Greift nur bei Aufrufen, deren Plugin die beteiligten Notizen meldet. |
+| **Strenger Ordner-Ausschluss** | an | An: eine einzige ausgeschlossene Notiz verhindert den ganzen Aufruf. Aus: der Aufruf entfällt nur, wenn ALLE beteiligten Notizen ausgeschlossen sind. |
 | **Zusätzliche Begriffe maskieren** | *(leer)* | Ein Begriff je Zeile, zusätzlich zu den eingebauten Mustern für E-Mail/IBAN/Telefon/URL-Zugangsdaten — gleich maskiert, mit derselben Platzhalter-Konsistenz. Wirkt nur, solange der Schalter darüber an ist. |
 | **Personenbezogenes auch im rohen Trace maskieren** | aus | Wendet die PII-Maskierung auch auf den rohen Trace an, nicht nur auf einen künftigen bewerteten Datensatz. Standardmäßig aus, weil das Debuggen einer schlechten Antwort sehen muss, was wirklich gesendet wurde. |
 
@@ -179,8 +194,21 @@ interface LlmLabApi {
 `log()` ist bewusst fire-and-forget: Es gibt die vergebene id sofort zurück und schreibt
 asynchron auf die Platte, damit ein Aufrufer mitten im Stream nie ausgebremst oder blockiert
 wird. Die API defensiv lesen (LLM Lab ist womöglich nicht installiert) und `log()` **nie**
-`await`en — es gibt nichts zu erwarten. Der vollständige Vertrag und seine Begründung stehen
-in [`AGENTS.md`](AGENTS.md).
+`await`en — es gibt nichts zu erwarten.
+
+**`apiVersion` steht auf `2`.** Sie gegen die eigene Konstante prüfen, bevor man sich auf die
+Form verlässt — diese Versionsnummer ist der Vertrag, bewusst anstelle einer Build-Kopplung
+zwischen zwei eigenständigen Repositories. Version 2 hat zwei optionale Felder ergänzt, die
+ein Konsument füllen sollte, wenn er kann:
+
+- **`secrets?: string[]`** — die für diesen Aufruf verwendeten Endpunkt-Schlüssel. Sie dienen
+  ausschließlich als Maskierungsliste und werden nie Teil des Records. Ohne sie werden nur
+  wörtliche `Bearer`-Token erfasst.
+- **`contextPaths?: string[]`** — die Vault-Pfade der Notizen, deren Inhalt in diesen Aufruf
+  eingeflossen ist. Daran wird der Ordner-Ausschluss des Nutzers gemessen; ein Aufruf ohne
+  Pfade wird immer mitgeschrieben.
+
+Der vollständige Vertrag und seine Begründung stehen in [`AGENTS.md`](AGENTS.md).
 
 ## Mitwirken
 

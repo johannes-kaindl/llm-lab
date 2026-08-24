@@ -56,6 +56,10 @@ export class LabSettingTab extends PluginSettingTab implements SettingControlHos
         return s.maxBytes / BYTES_PER_MB;
       case "excludedFeatures":
         return s.excludedFeatures.join("\n");
+      case "excludedFolders":
+        return s.excludedFolders.join("\n");
+      case "strictFolderExclusion":
+        return s.strictFolderExclusion;
       case "redactPiiInTrace":
         return s.redactPiiInTrace;
       case "customPiiTerms":
@@ -84,6 +88,12 @@ export class LabSettingTab extends PluginSettingTab implements SettingControlHos
         break;
       case "excludedFeatures":
         s.excludedFeatures = parseLines(String(value));
+        break;
+      case "excludedFolders":
+        s.excludedFolders = parseLines(String(value));
+        break;
+      case "strictFolderExclusion":
+        s.strictFolderExclusion = Boolean(value);
         break;
       case "redactPiiInTrace":
         s.redactPiiInTrace = Boolean(value);
@@ -119,6 +129,19 @@ export class LabSettingTab extends PluginSettingTab implements SettingControlHos
         name: t("settings.excluded.name"),
         desc: t("settings.excluded.desc"),
         control: { type: "textarea", key: "excludedFeatures" },
+      },
+      {
+        name: t("settings.excludedFolders.name"),
+        desc: t("settings.excludedFolders.desc"),
+        control: { type: "textarea", key: "excludedFolders" },
+      },
+      // Steht UNTER der Liste, nicht darueber: dieser Schalter ist ihr Modifikator,
+      // nicht ihr Aktivator — anders als redactPiiInTrace, das VOR customPiiTerms
+      // stehen muss, weil es dessen einziger Aktivator ist.
+      {
+        name: t("settings.strictFolders.name"),
+        desc: t("settings.strictFolders.desc"),
+        control: { type: "toggle", key: "strictFolderExclusion" },
       },
       // Muss VOR customPiiTerms stehen: es ist der einzige Aktivator dieses Felds
       // (WriteOptions.piiTerms wirkt nur mit redactPii:true) und ist per Default aus —
@@ -164,6 +187,16 @@ export class LabSettingTab extends PluginSettingTab implements SettingControlHos
         name: t("settings.redactionLimits.name"),
         render: (setting) => {
           setting.setDesc(t("settings.redactionLimits"));
+        },
+      },
+      // Dritte inhaltlich verbindliche Zeile, gleiche Bauart wie die beiden darueber:
+      // benennt die GRENZE des Ordner-Filters. Er greift nur bei Aufrufen, deren
+      // Plugin Pfade meldet — wer das nicht weiss, haelt den Ausschluss fuer eine
+      // Zusage ueber alle Plugins hinweg.
+      {
+        name: t("settings.folderFilterLimits.name"),
+        render: (setting) => {
+          setting.setDesc(t("settings.folderFilterLimits"));
         },
       },
     ];

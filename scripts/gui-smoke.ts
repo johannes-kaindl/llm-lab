@@ -107,6 +107,8 @@ interface Settings {
   excludedFeatures: string[];
   customPiiTerms: string[];
   redactPiiInTrace: boolean;
+  excludedFolders: string[];
+  strictFolderExclusion: boolean;
 }
 
 async function main(): Promise<void> {
@@ -177,6 +179,26 @@ async function main(): Promise<void> {
     if (!vorhanden.ok) {
       throw new Error(`Plugin "${PLUGIN_ID}" ist im Vault "${vaultName}" nicht aktiv — in den Community-Plugins einschalten.`);
     }
+
+    // Der Hash-Guard oben vergleicht nur DATEIEN (Arbeitsbaum vs. Vault), nicht was Obsidian
+    // gerade GELADEN hat: das Plugin-Objekt im laufenden Fenster stammt vom letzten
+    // enablePlugin (typischerweise Vault-Oeffnen), nicht vom letzten Deploy. Ohne diesen
+    // Reload hier pruefen die fruehen Punkte (allen voran Pruefpunkt 1, der Vertrag) also
+    // moeglicherweise einen VERALTETEN Plugin-Stand, obwohl main.js laengst aktuell ist —
+    // gemessen 2026-08-23: apiVersion 1 im geladenen Objekt, obwohl main.js bereits
+    // apiVersion 2 baute. Der Reload-Mechanismus selbst ist derselbe wie in Pruefpunkt 4
+    // weiter unten (disablePlugin/enablePlugin + pollUntil auf status()) — hier zieht er nur
+    // vor den ersten inhaltlichen Pruefpunkt.
+    await cdp.evaluate(`
+      await app.plugins.disablePlugin(${JSON.stringify(PLUGIN_ID)});
+      await app.plugins.enablePlugin(${JSON.stringify(PLUGIN_ID)});
+      return true;
+    `);
+    await pollUntil<{ recording: boolean } | null>(cdp, `
+      const p = app.plugins.plugins[${JSON.stringify(PLUGIN_ID)}];
+      return p && p.api ? p.api.status() : null;
+    `, 15_000, 500);
+
     const base = vorhanden.dir as string;
     const tracesDir = `${base}/traces`;
     const heuteDatei = `${tracesDir}/${heute}.jsonl`;
@@ -203,8 +225,12 @@ async function main(): Promise<void> {
         messages: [{ role: "user", content: "ping" }], content: "pong", latencyMs: 1 });
       return { apiVersion: api.apiVersion, recording: st.recording, logTyp: typeof api.log, ergebnisTyp: typeof r };
     `);
+    // Der Treiber ist selbst ein Konsument dieses Vertrags — genau wie vault-rags
+    // `lab_client.ts` traegt er die apiVersion als eigene Kopie und muss bei jedem Bump von
+    // `LLM_LAB_API_VERSION` (src/plugin_api.ts) manuell nachziehen. Aktueller Stand: 2 (seit
+    // 431c23c, "feat(api)!: apiVersion 2 — secrets und contextPaths auf LabLogInput").
     record("Anbieter-Vertrag haengt am Plugin-Objekt (apiVersion, status, log)",
-      vertrag.apiVersion === 1 && vertrag.recording === true && vertrag.logTyp === "function",
+      vertrag.apiVersion === 2 && vertrag.recording === true && vertrag.logTyp === "function",
       `apiVersion ${String(vertrag.apiVersion)} · recording ${String(vertrag.recording)}`);
     record("log() gibt die id SYNCHRON zurueck (kein Promise)",
       vertrag.ergebnisTyp === "string",
@@ -414,6 +440,53 @@ async function main(): Promise<void> {
       Boolean(bearerZeile) && !bearerZeile?.includes(token) && Boolean(bearerZeile?.includes("Bearer ••••")),
       bearerZeile ? (bearerZeile.includes(token) ? "Token steht im Klartext auf der Platte" : "Bearer •••• geschrieben") : "keine Zeile gefunden");
 
+    // --- 11b. Aufruf-Schluessel: exakte Maskierung (die Slice-1-Luecke) -----
+    const apiKey = "sk-smoke-endpunkt-9876543210";
+    const keyId = await cdp.evaluate<string>(logRuf("secret-probe",
+      `{ secrets: ["${apiKey}"], content: "der Server antwortete mit ${apiKey}" }`));
+    const keyZeile = await pollUntil<string>(cdp, `
+      const t = await app.vault.adapter.read(${JSON.stringify(heuteDatei)});
+      return t.split("\\n").filter(Boolean).find(l => l.includes(${JSON.stringify(keyId)})) || null;
+    `, 15_000, 500);
+    record("Ein per log() mitgelieferter Endpunkt-Schluessel wird exakt maskiert",
+      Boolean(keyZeile) && !keyZeile?.includes(apiKey) && Boolean(keyZeile?.includes("••••")),
+      keyZeile ? (keyZeile.includes(apiKey) ? "Schluessel steht im Klartext auf der Platte" : "maskiert") : "keine Zeile gefunden");
+
+    record("Der mitgelieferte Schluessel steht selbst nicht im Record",
+      Boolean(keyZeile) && !keyZeile?.includes("secrets"),
+      keyZeile?.includes("secrets") ? "Feld `secrets` auf der Platte" : "kein secrets-Feld");
+
+    // --- 11c. Ordner-Filter: erst die Gegenprobe, dann die Abwesenheit ------
+    await cdp.evaluate(`
+      const p = app.plugins.plugins[${JSON.stringify(PLUGIN_ID)}];
+      p.settings.excludedFolders = ["Privat"];
+      p.settings.strictFolderExclusion = true;
+      await p.saveSettings(); return true;
+    `);
+
+    // Gegenprobe zuerst: ein NICHT ausgeschlossener Pfad muss ankommen — sonst
+    // beweist die Abwesenheit darunter nur, dass gerade gar nichts geschrieben wird.
+    const offenId = await cdp.evaluate<string>(logRuf("folder-open",
+      `{ contextPaths: ["Notizen/oeffentlich.md"] }`));
+    const offenZeile = await pollUntil<string>(cdp, `
+      const t = await app.vault.adapter.read(${JSON.stringify(heuteDatei)});
+      return t.split("\\n").filter(Boolean).find(l => l.includes(${JSON.stringify(offenId)})) || null;
+    `, 15_000, 500);
+    record("Ein Pfad ausserhalb der ausgeschlossenen Ordner wird mitgeschrieben",
+      Boolean(offenZeile), offenZeile ? "Zeile geschrieben" : "keine Zeile — der Filter greift zu breit");
+
+    const vorFilter = await zeilenBei();
+    await cdp.evaluate(logRuf("folder-blocked", `{ contextPaths: ["Privat/Tagebuch.md"] }`));
+    await new Promise((r) => setTimeout(r, 600));
+    const nachFilter = await zeilenBei();
+    record("Ein Pfad aus einem ausgeschlossenen Ordner erzeugt keinen Record",
+      nachFilter === vorFilter, `${vorFilter} → ${nachFilter} Zeilen`);
+
+    await cdp.evaluate(`
+      const p = app.plugins.plugins[${JSON.stringify(PLUGIN_ID)}];
+      p.settings.excludedFolders = []; await p.saveSettings(); return true;
+    `);
+
     // --- 12. PII: aus per Default, record-weit konsistent wenn an -----------
     const mail = "smoke.person@example.org";
     const klartextId = await cdp.evaluate<string>(logRuf("pii-default",
@@ -450,7 +523,7 @@ async function main(): Promise<void> {
     // in ein Feld, das nichts tut, und haelt sich fuer geschuetzt.
     await cdp.evaluate(`app.setting.open(); app.setting.openTabById(${JSON.stringify(PLUGIN_ID)}); await new Promise(r => setTimeout(r, 700)); return true;`);
     let tabCdp: Cdp | null = cdp;
-    let tab = await cdp.evaluate<{ da: boolean; namen?: string[]; ortText?: string; grenzenSichtbar?: boolean }>(TAB_LESEN(base));
+    let tab = await cdp.evaluate<{ da: boolean; namen?: string[]; ortText?: string; grenzenSichtbar?: boolean; filterGrenzenSichtbar?: boolean }>(TAB_LESEN(base));
     if (!tab.da) {
       // Ab Obsidian 1.13 sind die Einstellungen ein eigenes FENSTER — dann ist das Modal im
       // Workspace-Dokument nicht zu finden, und das sieht wie ein Plugin-Defekt aus.
@@ -472,6 +545,19 @@ async function main(): Promise<void> {
       record("Die Grenzen der Maskierung stehen sichtbar im Tab",
         tab.grenzenSichtbar === true,
         tab.grenzenSichtbar ? "Absatz sichtbar" : "Absatz fehlt oder ist unsichtbar");
+      // Die drei Zeilen des Ordner-Filters (Slice 2), namentlich nachgewiesen — nicht nur
+      // ueber defs.length > 0, das gruen bliebe, wuerden sie aus getSettingDefinitions()
+      // verschwinden. Nativer Pfad hier; der Fallback-Pfad folgt unten in 13b nach
+      // tab.display().
+      record("excludedFolders-Zeile steht am nativen Pfad",
+        namen.some((n) => /Never record notes from these folders|Notizen aus diesen Ordnern nie mitschreiben/.test(n)),
+        `Zeilen: ${namen.join(" | ")}`);
+      record("strictFolderExclusion-Zeile steht am nativen Pfad",
+        namen.some((n) => /Strict folder exclusion|Strenger Ordner-Ausschluss/.test(n)),
+        `Zeilen: ${namen.join(" | ")}`);
+      record("Die render-Hatch der Ordner-Filter-Grenzen steht sichtbar im nativen Pfad",
+        tab.filterGrenzenSichtbar === true,
+        tab.filterGrenzenSichtbar ? "Absatz sichtbar" : "Absatz fehlt oder ist unsichtbar");
     }
     // --- 13b. Deklarative Settings-API: der Store-Posten und was er dem Nutzer bringt ---
     // Gemessen wird im HAUPTfenster, auch wenn die Einstellungen ab 1.13 in einem eigenen
@@ -482,6 +568,7 @@ async function main(): Promise<void> {
       da: boolean; defs?: number; uebernommen?: number; nativeZeilen?: number;
       fallbackZeilen?: number; suchbegriff?: string | null;
       mbGelesen?: number; mbGespeichert?: number; ungueltigVerworfen?: boolean;
+      fallbackNamen?: string[]; fallbackFilterSichtbar?: boolean;
     }>(`
       const tab = app.setting.activeTab
         ?? (app.setting.pluginTabs || []).find(t => t.id === ${JSON.stringify(PLUGIN_ID)});
@@ -503,6 +590,13 @@ async function main(): Promise<void> {
       // ungeprueft und drifted still von der Definitionsliste weg.
       tab.display();
       const fallbackZeilen = tab.containerEl.querySelectorAll(".setting-item").length;
+      // Dieselben drei Ordner-Filter-Zeilen wie am nativen Pfad, jetzt gegen den
+      // display()-Fallback gelesen — namentlich, nicht nur als Zeilenzahl.
+      const fallbackNamen = [...tab.containerEl.querySelectorAll(".setting-item-name")]
+        .map(e => (e.textContent || "").trim()).filter(Boolean);
+      const fallbackFilterAbsatz = [...tab.containerEl.querySelectorAll(".setting-item-description")]
+        .find(p => /folder filter can and cannot see|Ordner-Filter sieht und was nicht|filter only applies to calls|Filter greift nur bei Aufrufen/i.test(p.textContent || ""));
+      const fallbackFilterSichtbar = fallbackFilterAbsatz ? fallbackFilterAbsatz.getClientRects().length > 0 : false;
 
       // Die MB↔Byte-Uebersetzung existiert nur im Host (getControlValue/setControlValue)
       // und in keinem vitest — die Zeile heisst "(MB)", gespeichert werden Bytes.
@@ -517,7 +611,8 @@ async function main(): Promise<void> {
         app.plugins.plugins[${JSON.stringify(PLUGIN_ID)}].settings.keepDays > 0;
 
       return { da: true, defs: defs.length, uebernommen, nativeZeilen, fallbackZeilen,
-               suchbegriff: ersterName, mbGelesen, mbGespeichert, ungueltigVerworfen };
+               suchbegriff: ersterName, mbGelesen, mbGespeichert, ungueltigVerworfen,
+               fallbackNamen, fallbackFilterSichtbar };
     `);
 
     if (!deklarativ.da) {
@@ -549,6 +644,19 @@ async function main(): Promise<void> {
       record("Eine ungueltige Zahl wird auch ohne validate() verworfen (Fallback-Pfad)",
         deklarativ.ungueltigVerworfen === true,
         deklarativ.ungueltigVerworfen ? "keepDays bleibt positiv" : "keepDays wurde zu NaN/0 ueberschrieben");
+
+      // Dieselben drei Ordner-Filter-Zeilen wie am nativen Pfad (oben, 13.), jetzt gegen den
+      // display()-Fallback-Walker gelesen — beide Pfade muessen sie zeigen, nicht nur einer.
+      const fbNamen = deklarativ.fallbackNamen ?? [];
+      record("excludedFolders-Zeile steht am Fallback-Pfad",
+        fbNamen.some((n) => /Never record notes from these folders|Notizen aus diesen Ordnern nie mitschreiben/.test(n)),
+        `Zeilen: ${fbNamen.join(" | ")}`);
+      record("strictFolderExclusion-Zeile steht am Fallback-Pfad",
+        fbNamen.some((n) => /Strict folder exclusion|Strenger Ordner-Ausschluss/.test(n)),
+        `Zeilen: ${fbNamen.join(" | ")}`);
+      record("Die render-Hatch der Ordner-Filter-Grenzen steht sichtbar im Fallback-Pfad",
+        deklarativ.fallbackFilterSichtbar === true,
+        deklarativ.fallbackFilterSichtbar ? "Absatz sichtbar" : "Absatz fehlt oder ist unsichtbar");
     }
 
     // Auffindbarkeit in der Einstellungs-Suche — der eigentliche Nutzen der Migration,
@@ -688,11 +796,17 @@ function TAB_LESEN(base: string): string {
     // im DOM haengen und trotzdem nichts anzeigen.
     const grenzen = [...wurzel.querySelectorAll(".setting-item-description")]
       .find(p => /Masking finds patterns|Die Maskierung findet Muster/.test(p.textContent || ""));
+    // Dritte inhaltlich verbindliche Zeile (Ordner-Filter-Grenzen), gleiche Bauart wie
+    // 'grenzen' oben: eine render-Hatch ohne eigenen Regler, die der native Renderer
+    // stillschweigend uebersaehe, waere sie keine eigene Definition mit Ueberschrift.
+    const filterGrenzen = [...wurzel.querySelectorAll(".setting-item-description")]
+      .find(p => /folder filter can and cannot see|Ordner-Filter sieht und was nicht|filter only applies to calls|Filter greift nur bei Aufrufen/i.test(p.textContent || ""));
     return {
       da: true,
       namen,
       ortText: ort ? (ort.name + " — " + ort.desc) : null,
       grenzenSichtbar: grenzen ? grenzen.getClientRects().length > 0 : false,
+      filterGrenzenSichtbar: filterGrenzen ? filterGrenzen.getClientRects().length > 0 : false,
     };
   `;
 }

@@ -7,7 +7,9 @@ Workspace-weite Standards (comply-or-explain): siehe [`../_docs/CONVENTIONS.md`]
 **Profil:** `ts-node` · `obsidian-plugin`.
 
 **Stand 2026-08-23: Slice 1 gebaut, 0.1.0 und 0.2.0 released, beide Forges öffentlich, Store-
-Einreichung steht aus (Developer Dashboard, Maintainer-Login).** Für neue Vorhaben gilt: erst
+Einreichung steht aus (Developer Dashboard, Maintainer-Login). Die Vertragserweiterung
+(`apiVersion` 2 — `secrets`/`contextPaths`, Ordner-Filter) ist gebaut und liegt unter
+`[Unreleased]`, noch nicht released.** Für neue Vorhaben gilt: erst
 Kit-first-Sondierung (`../AGENTS.md` + `../REGISTRY.md`), dann `superpowers:brainstorming` →
 Spec → Plan → TDD.
 
@@ -41,7 +43,7 @@ Modell auf — es zeichnet nur auf, was ein anderes Plugin bereits gesendet und 
 ```
 llm-lab                                vault-rag / koda-agent / vault-crews / obsidian-transmute
   plugin.api ─────────────────────────► app.plugins.plugins["llm-lab"]?.api?.log(record)
-  { apiVersion, status(), log() }
+  { apiVersion: 2, status(), log() }
 ```
 
 Nicht verhandelbare Eigenschaften:
@@ -62,7 +64,12 @@ Nicht verhandelbare Eigenschaften:
 - **`apiVersion` ist der Vertrag, nicht der Compiler.** Zwei eigenständige Repos (PROF-OBS-09)
   dürfen kein Build-Coupling eingehen — ein Konsument kopiert die Form (`LabLogInput`),
   importiert sie nie, und prüft `apiVersion` gegen seine eigene Konstante, bevor er sich auf
-  die Form verlässt.
+  die Form verlässt. **Sie steht seit 2026-08-23 auf `2`** (`LLM_LAB_API_VERSION`,
+  `plugin_api.ts`): `LabLogInput` trägt jetzt zusätzlich die beiden optionalen Steuerfelder
+  `secrets?: string[]` und `contextPaths?: string[]`. Der Bump ist die erste gemessene
+  Anwendung dieser Regel im Workspace — ein Konsument, der strikt auf `1` prüft, schweigt
+  bis zu seinem Nachzug, und genau das soll er tun. Der Preis ist ein koordiniertes
+  Doppel-Release in fester Reihenfolge: **Anbieter zuerst, Konsument danach.**
 
 ### Verhältnis zum Kit
 
@@ -109,17 +116,20 @@ Bewertungs-Fähigkeit baut, findet hier die Entscheidung, aber keinen Anfang zum
 
 Zwei Maskierungsläufe, **niemals in der anderen Reihenfolge**:
 
-1. **Schlüssel-Maskierung (`redactRecordSecrets`) LÄUFT IMMER, ohne Einstellung — aber
-   der Mechanismus läuft immer, das Ergebnis ist trotzdem meist wirkungslos.** Der
-   exakte-String-Ersetzungslauf über die Schlüsselliste tut in Slice 1 nichts: `main.ts`
-   verdrahtet `secrets: () => []` (eine permanent leere Liste), und `LabLogInput` hat KEIN
-   Feld, über das ein aufrufendes Plugin einen Endpunkt-Schlüssel überhaupt übergeben könnte.
-   Real wirksam ist nur das fest einprogrammierte `BEARER`-Muster, das einen Token trifft, der
-   wörtlich in `Bearer <token>`-Form im aufgezeichneten Text auftaucht. **Das ist eine echte
-   Lücke in Slice 1, keine Design-Entscheidung** — s. „Bekannte Lücken in Slice 1" unten.
-   API-Schlüssel und Bearer-Echos sind kein Inhalt und kein Zweck der Erhebung — sie gehören
-   in keine der beiden Schichten, roh oder redigiert; das bleibt die Begründung dafür, WARUM
-   diese Maskierung unbedingt laufen soll, auch wenn sie es in Slice 1 nur teilweise tut.
+1. **Schlüssel-Maskierung (`redactRecordSecrets`) LÄUFT IMMER, ohne Einstellung — und hat
+   seit `apiVersion` 2 auch etwas zu vergleichen.** Der exakte-String-Ersetzungslauf
+   bekommt die **Vereinigung** zweier Listen: `deps.secrets()` (die Lab-eigene Liste — sie
+   ist weiterhin leer, `main.ts` verdrahtet unverändert `secrets: () => []`, und sie ist die
+   Stelle, an der später eine im Lab konfigurierte Liste andockt) und `input.secrets` (die
+   Schlüssel, die der Konsument bei DIESEM Aufruf mitgibt). `log()` trennt das Feld explizit
+   heraus, bevor `buildTraceRecord` läuft — ein Schlüssel wird nur zum Maskieren benutzt und
+   wandert nie in den Record. Zusätzlich greift weiterhin das fest einprogrammierte
+   `BEARER`-Muster auf Token, die wörtlich in `Bearer <token>`-Form im Text auftauchen.
+   **Die Zusage bleibt trotzdem an eine Bedingung geknüpft:** ein Konsument, der `secrets`
+   nicht befüllt, bekommt genau wie vorher nur das `BEARER`-Muster — der Mechanismus läuft
+   unbedingt, das Ergebnis hängt am Aufrufer. API-Schlüssel und Bearer-Echos sind kein Inhalt
+   und kein Zweck der Erhebung — sie gehören in keine der beiden Schichten, roh oder
+   redigiert; das ist die Begründung dafür, WARUM diese Maskierung unbedingt läuft.
 2. **PII-Redaktion (`redactPii`) läuft NUR über die Textfelder** (`messages[].content`,
    `response.content`, `response.reasoning`, `error`) und **nur wenn `redactPiiInTrace`
    gesetzt ist** (Default: aus). PII *ist* der Inhalt und damit der Zweck der Erhebung — das
@@ -166,40 +176,45 @@ Status wird ausschließlich über die Statusleiste (Icon + Text, nie Farbe allei
 und einen Command (`toggle-pause`) sichtbar. Wer eine UI für Slice 2 baut, prüft zuerst
 `../UI-STANDARD.md`.
 
-## Bekannte Lücken in Slice 1
+## Bekannte Lücken in Slice 1 — beide geschlossen (2026-08-23)
 
-**Endpunkt-API-Schlüssel werden NICHT durch exakte Übereinstimmung maskiert — eine echte
-Lücke, keine Design-Entscheidung.** Konkret, gegen den Code verifiziert (Review 2026-08-23):
+Slice 1 führte hier zwei offene Lücken: Endpunkt-Schlüssel wurden nicht durch exakte
+Übereinstimmung maskiert, und eine Ordner-/Pfad-Ausschlussliste gab es überhaupt nicht.
+**Beide sind mit der Vertragserweiterung (`apiVersion` 1 → 2, 2026-08-23) geschlossen.** Der
+Abschnitt bleibt stehen, weil die Begründung, warum sie in Slice 1 offen blieben, weiter
+Erklärwert hat — und weil beide Zusagen eine benannte Bedingung behalten.
 
-- `main.ts` verdrahtet `createLlmLabApi` mit `secrets: () => []` — einer **permanent leeren**
-  Liste. Das ist die einzige Stelle, an der die API überhaupt konstruiert wird.
-- `LabLogInput` (`plugin_api.ts`) hat **kein Feld**, über das ein aufrufendes Nachbarplugin
-  seinen eigenen Endpunkt-Schlüssel an `log()` durchreichen könnte.
-- Damit läuft `redactRecordSecrets(record, [])` bei jedem Schreibvorgang — der Mechanismus
-  läuft unbedingt, wie dokumentiert —, aber seine exakte-String-Ersetzungsschleife hat nichts
-  zum Vergleichen und tut nichts. **Mechanismus läuft unbedingt ≠ Ergebnis ist garantiert.**
-  Real wirksam bleibt nur das fest einprogrammierte `BEARER`-Muster (`redact_secrets.ts`), das
-  einen Token trifft, der wörtlich in `Bearer <token>`-Form im aufgezeichneten Text auftaucht
-  — z.B. weil ein Konsument ihn versehentlich in eine Fehlermeldung oder einen Header-Echo im
-  `content`-Feld einbettet.
+**Warum sie überhaupt offen blieben:** beides ließ sich nur über den **öffentlichen
+API-Vertrag** schließen, und der war zum Zeitpunkt des Befundes bereits abgenommen — samt der
+Konsumenten-Verdrahtung in `vault-rag`. Ein Vertrags-Umbau ist kein Dokumentationsfix; er
+wurde deshalb bewusst als eigenes Vorhaben mit eigenem Versionsbump und koordiniertem
+Doppel-Release geführt statt nachträglich in eine abgenommene Slice gepatcht.
 
-**Was das schließen würde, bewusst NICHT in dieser Session angegangen:** ein `secrets`- oder
-`apiKeys`-Feld auf `LabLogInput`, das ein Konsument befüllt, plus die entsprechende
-Verdrahtung in `main.ts` und in jedem Konsumenten (aktuell `vault-rag`). Das ist eine Änderung
-am öffentlichen API-Vertrag (Task 8) und an bereits abgenommener Konsumenten-Verdrahtung
-(Task 10) — ein Vertrags-Umbau, kein Dokumentationsfix, und deshalb bewusst als Folge-Arbeit
-für die nächste Slice vorgemerkt statt hier nachträglich hineingepatcht.
+**Lücke 1 — Schlüssel-Maskierung — geschlossen über `LabLogInput.secrets`.** Ein Konsument
+gibt seine Endpunkt-Schlüssel pro Aufruf mit; `log()` trennt das Feld heraus, bevor der Record
+gebaut wird (der Schlüssel ist Steuerdatum, nie Record-Inhalt), und **vereinigt** es mit
+`deps.secrets()`. **Wichtig gegen ein naheliegendes Missverständnis: das Lab hat weiterhin
+KEINE eigene Schlüsselliste** — `main.ts` verdrahtet unverändert `secrets: () => []`.
+Geschlossen ist die Lücke, weil der Aufrufer seine Schlüssel jetzt mitgeben kann, nicht weil
+das Lab sie kennt. Der Satz **„Mechanismus läuft unbedingt ≠ Ergebnis ist garantiert"** gilt
+damit weiter, nur anders aufgelöst: er hing vorher an einer Lücke im Vertrag, jetzt hängt er
+am Aufrufer — ein Konsument, der `secrets` nicht befüllt, bekommt weiterhin nur das
+`BEARER`-Muster (`redact_secrets.ts`), das einen Token trifft, der wörtlich in
+`Bearer <token>`-Form im aufgezeichneten Text auftaucht.
 
-**Zweite echte Lücke, derselben Bauart: es gibt KEINE Ordner-/Pfad-Ausschlussliste.**
-`shouldLog(feature, paused, settings)` (`settings.ts`) prüft ausschließlich `feature` gegen
-`excludedFeatures` — es gibt keinen zweiten Parameter und keinen Vergleich gegen einen Pfad.
-`LabLogInput`/`TraceInput` (`plugin_api.ts`/`record.ts`) haben kein Pfad-Feld, und `log()`
-reicht folglich nie einen Pfad an `shouldLog` oder `buildTraceRecord` durch — ein Aufruf, dessen
-RAG-Kontext aus einer als privat markierten Notiz stammt, wird also genauso protokolliert wie
-jeder andere. Frühere Fassungen des CHANGELOGs behaupteten das Gegenteil („folder/feature
-exclusion list") — das war unzutreffend, korrigiert 2026-08-23. Schließen braucht dieselbe Art
-Vertrags-Umbau wie die Schlüssel-Lücke oben (ein Pfad-Feld auf `LabLogInput`, Verdrahtung in
-jedem Konsumenten) und ist aus demselben Grund nicht Teil dieser Session.
+**Lücke 2 — Ordner-Ausschluss — geschlossen über `LabLogInput.contextPaths` plus zwei
+Einstellungen.** `excludedFolders` (Ordnerpfade, Präfix-Vergleich mit Ordnergrenze, damit
+„Privat" nicht auch „Privates.md" schluckt) und `strictFolderExclusion` (Default `true`: EIN
+ausgeschlossener Pfad verhindert den Record; `false`: nur wenn ALLE beteiligten Notizen
+ausgeschlossen sind). Die Entscheidung liegt in `pathsExcluded(paths, settings)` und wird von
+`shouldLog(input, paused, settings)` kurzschließend mitgeführt (`enabled` → `paused` →
+`feature` → Pfade) — ein ausgeschlossener Pfad verhindert, dass ein Record überhaupt entsteht.
+**Die Zusage hat eine benannte Grenze, und sie ist gewollt: der Filter greift nur bei Aufrufen,
+deren Plugin `contextPaths` meldet — fail-open.** Fail-closed hieße: sobald ein Ordner
+ausgeschlossen ist, verstummt jeder Konsument, der noch keine Pfade liefert. Der Preis ist
+eine Zusage mit Bedingung, und weil das eine Nutzer-Zusage ist, steht die Bedingung im
+Settings-Tab (dritte `render`-Hatch, „Was der Ordner-Filter sieht und was nicht") und in
+beiden READMEs — nicht nur hier.
 
 ## Modul-Layout (`src/`)
 
@@ -210,23 +225,28 @@ core/
                     unterscheidbar, nicht geheim) · hostOf (Host+Port aus einer URL, faellt
                     auf "unbekannt" zurueck statt zu werfen) · buildTraceRecord.
   redact_secrets.ts redactSecrets/redactRecordSecrets — Schlüssel-Maskierung, Lauf ist
-                    unbedingt, aber in Slice 1 mit leerer Schlüsselliste verdrahtet (nur
-                    das BEARER-Muster wirkt real) — s. „Bekannte Lücken in Slice 1".
+                    unbedingt; die Liste ist die Vereinigung aus deps.secrets() (leer) und
+                    den Aufruf-Schlüsseln (LabLogInput.secrets). Ohne Aufruf-Schlüssel wirkt
+                    nur das BEARER-Muster — s. „Bekannte Lücken in Slice 1 — beide geschlossen" oben.
   redact_pii.ts     redactPii — Muster-Maskierung mit record-weiten Platzhaltern, läuft nur
                     wenn redactPiiInTrace gesetzt ist (für den rohen Trace).
   rotation.ts       planRotation — reine Entscheidung, welche Trace-Dateien weg müssen
                     (Alter + Größengrenze, heutige Datei geschützt), `today` als Parameter
                     statt `Date` für Zeitreise-freie Tests.
-  settings.ts       LabSettings · DEFAULT_SETTINGS · shouldLog(feature, paused, settings).
+  settings.ts       LabSettings · DEFAULT_SETTINGS · pathsExcluded(paths, settings) —
+                    Ordner-Ausschluss (Präfix mit Ordnergrenze, fail-open ohne Pfade) ·
+                    shouldLog(input: LogDecisionInput, paused, settings) — bündelt Feature-
+                    UND Ordner-Ausschluss kurzschließend: enabled → paused → feature → Pfade.
   trace_store.ts    TraceStore — TraceSink-Port injiziert, write() fire-and-forget,
                     writeNow() awaitbar (nur für Tests), rotate() nach jedem Schreiben.
   i18n/strings.ts   EN/DE-Wörterbuch, importiert für den Registrierungs-Seiteneffekt.
 obsidian/
   settings_tab.ts   LabSettingTab — ZWEIGLEISIG (seit 0.2.0): getSettingDefinitions() ist die
                     eine Struktur, get/setControlValue der Host, display() zeichnet dieselbe
-                    Liste mit dem Kit-Walker nach (Obsidian < 1.13). Enthält die beiden
+                    Liste mit dem Kit-Walker nach (Obsidian < 1.13). Enthält die drei
                     inhaltlich verbindlichen Zeilen (Ablageort im Klartext, Grenzen der
-                    Maskierung) — beide als `render`-Hatch, s. unten.
+                    Maskierung, Grenze des Ordner-Filters) — alle drei als `render`-Hatch,
+                    s. unten.
   vault_sink.ts     vaultSink(adapter) — dünne Anpassung von Obsidians DataAdapter an
                     TraceSink; legt den Ordner beim ersten Schreiben an.
 plugin_api.ts       createLlmLabApi — der öffentliche Vertrag (s. oben).
@@ -236,7 +256,8 @@ vendor/kit/i18n.ts          Verbatim-Snapshot aus obsidian-kit — nie von Hand 
 vendor/kit-obsidian/
   settings_walker.ts        Übernommen aus obsidian-kit@0.27.0 (Herkunftsstempel in Zeile 1),
                             17. Consumer des Musters. Einzige Abweichung: der `folder`-Zweig
-                            ist entfernt (zieht FolderSuggest nach, kein Ordner-Setting hier).
+                            ist entfernt (zieht FolderSuggest nach; der Ordner-Ausschluss ist
+                            eine `textarea`, kein `folder`-Control).
                             Nie von Hand editieren — wächst der Bedarf, neu aus dem Kit ziehen.
 ```
 
@@ -245,8 +266,8 @@ vendor/kit-obsidian/
 1. **Eine Zeile ohne Regler braucht im deklarativen Modell trotzdem einen Renderer.** Eine
    reine name/desc-Definition überspringt der native 1.13-Renderer stillschweigend, während
    der Fallback-Walker sie zeichnet — die beiden Pfade zeigten dann Verschiedenes, und unter
-   1.13 fiele es nie auf. Deshalb sind Ablageort und Maskierungs-Grenzen `render`-Hatches.
-   Prüfpunkt 23 im GUI-Smoke bewacht genau das.
+   1.13 fiele es nie auf. Deshalb sind Ablageort, Maskierungs-Grenzen und die Grenze des
+   Ordner-Filters `render`-Hatches. Prüfpunkt 23 im GUI-Smoke bewacht genau das.
 2. **Die Wertprüfung gehört in `setControlValue`, nicht nur in `validate`.** `validate` wertet
    allein der native Renderer aus; der Kit-Walker kennt es nicht. Ohne die Wache im Host
    schriebe der Fallback-Pfad `NaN` in die Einstellungen (Prüfpunkt 25).
@@ -305,10 +326,16 @@ npm run version-bump / preflight / release   # delegieren ans zentrale ../tools/
   `plugin_api.ts`), der Schreibvorgang selbst läuft danach fire-and-forget. Ein Konsument, der
   die id für einen späteren Bewertungsknopf braucht, bekommt sie also garantiert, auch wenn
   der zugehörige Trace erst Millisekunden später tatsächlich auf der Platte steht.
-- **`shouldLog` ignoriert `paused`, wenn `settings.enabled` bereits `false` ist** (kurzschließt
-  in dieser Reihenfolge) — beide Bedingungen sind trotzdem unabhängig zu lesen: `enabled` ist
-  persistiert, `paused` ist Sitzungszustand und wird bewusst NICHT persistiert (eine Pause
-  soll beim nächsten Start von selbst enden).
+- **`shouldLog(input: LogDecisionInput, paused, settings)` nimmt seit `apiVersion` 2 ein
+  Objekt (`{ feature, contextPaths? }`), keinen Feature-String mehr** — Feature- und
+  Ordner-Ausschluss stehen bewusst in EINER Funktion. Zwei getrennte, die jeder Aufrufer
+  selbst kombinieren muss, sind die Fehlerklasse, bei der eine Schicht später vergessen wird.
+  Ausgewertet wird kurzschließend in dieser Reihenfolge: `enabled` → `paused` → `feature` →
+  Pfade. Dass `paused` dabei ignoriert wird, wenn `settings.enabled` schon `false` ist, macht
+  die beiden Bedingungen nicht gleich: `enabled` ist persistiert, `paused` ist Sitzungszustand
+  und wird bewusst NICHT persistiert (eine Pause soll beim nächsten Start von selbst enden).
+  Der Pfad-Schritt ist **fail-open**: ohne `contextPaths` greift er nicht (s. „Bekannte Lücken
+  in Slice 1 — beide geschlossen" oben).
 - **`redactRecordSecrets`/`redactPii` arbeiten über die Serialisierung** (`JSON.stringify`/
   `JSON.parse` bzw. Feld-für-Feld-Rekonstruktion), nicht über eine Liste zu pflegender Felder
   — eine Feldliste wäre genau die Buchhaltung, die beim nächsten neuen `TraceRecord`-Feld

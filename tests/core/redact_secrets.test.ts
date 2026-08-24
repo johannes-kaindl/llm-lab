@@ -31,6 +31,14 @@ describe("redactRecordSecrets", () => {
     expect(() => redactRecordSecrets(circular, [])).toThrow();
   });
 
+  it("maskiert einen Schluessel mit Sonderzeichen trotz JSON-Escaping (kein stiller Leak)", () => {
+    const key = 'sk-abc"def/ghi123';
+    const rec = { a: `key ${key} im Text` };
+    const out = redactRecordSecrets(rec, [key]);
+    expect(out.a).toBe("key •••• im Text");
+    expect(out.a).not.toContain(key);
+  });
+
   it("maskiert Schluessel in verschachtelten Message-Arrays (Produktionsform)", () => {
     type MessageArray = { messages: Array<{ role: string; content: string }> };
     const rec: MessageArray = {
