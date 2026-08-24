@@ -17,6 +17,7 @@
     "release": "test -f ../tools/release/release.mjs || { echo \"FEHLER: ../tools/release/ fehlt. Dieses Repo muss im Dach-Verzeichnis obsidian-plugins/ neben tools/ liegen.\" >&2; exit 1; }; node ../tools/release/release.mjs",
     "version-bump": "test -f ../tools/release/version-bump.mjs || { echo \"FEHLER: ../tools/release/ fehlt.\" >&2; exit 1; }; node ../tools/release/version-bump.mjs",
     "preflight": "test -f ../tools/release/preflight.mjs || { echo \"FEHLER: ../tools/release/ fehlt.\" >&2; exit 1; }; node ../tools/release/preflight.mjs",
+    "smoke:e2e": "esbuild scripts/e2e-crossplugin.ts --bundle --platform=node --format=esm --outfile=.e2e.mjs --log-level=warning && node .e2e.mjs",
     "smoke:gui": "esbuild scripts/gui-smoke.ts --bundle --platform=node --format=esm --outfile=.gui-smoke.mjs --log-level=warning && node .gui-smoke.mjs"
   },
   "keywords": [

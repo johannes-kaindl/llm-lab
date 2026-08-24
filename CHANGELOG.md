@@ -6,6 +6,14 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [Unreleased]
+
+### Added
+- `npm run smoke:e2e` (`scripts/e2e-crossplugin.ts`) — belegt die Strecke ueber die
+  echte Plugin-Grenze (vault-rag → `api.log()` → llm-lab → Platte), die beide
+  GUI-Smokes strukturell ueberspringen. Setzt beide Plugins installiert voraus und
+  ist deshalb nicht Teil von `gate`/`smoke:gui`.
+
 ## [0.3.0] — 2026-08-24
 
 ### Added

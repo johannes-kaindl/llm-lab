@@ -128,6 +128,10 @@ der Grund, warum die Wirkung (Punkt 11) zusätzlich zur Zahl (Punkt 10) geprüft
 
 ## Ende-zu-Ende ueber die Plugin-Grenze — 2026-08-24, 9/9 gruen
 
+Getrackt als `scripts/e2e-crossplugin.ts` (`npm run smoke:e2e`) — **nicht** Teil von
+`npm run gate` oder `smoke:gui`, weil er als einziger Treiber eine Fremdinstallation
+voraussetzt (beide Plugins echt im selben Vault, erreichbarer Chat-Endpunkt).
+
 **Warum das ein eigener Lauf ist und kein Pruefpunkt im Treiber:** unser GUI-Smoke ruft
 `api.log()` selbst auf, vault-rags ruft ein Lab-**Stub** auf. Beide Treiber ueberspringen damit
 genau die Strecke, die Slice 2 neu verdrahtet hat — vault-rag → Plugin-Grenze → llm-lab → Platte.
