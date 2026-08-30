@@ -311,7 +311,7 @@ npm run gate                      # lint + typecheck + typecheck:test + typechec
 OBSIDIAN_PLUGIN_DIR=… npm run deploy   # build + main.js/manifest.json/styles.css ins Vault-Plugin-Verzeichnis
 STAGING_VAULTS_DIR=… npm run smoke:gui -- --setup         # Pruef-Vault aus docs/images/fixture/ bauen
 STAGING_VAULTS_DIR=… npm run smoke:gui -- --vault llm-lab # 38 Pruefpunkte gegen ein laufendes Obsidian
-npm run smoke:e2e                 # 9 Pruefpunkte ueber die echte Plugin-Grenze (setzt vault-rag
+npm run smoke:e2e                 # 10 Pruefpunkte ueber die echte Plugin-Grenze (setzt vault-rag
                                   # UND llm-lab installiert voraus — nicht Teil von gate/smoke:gui)
 npm run version-bump / preflight / release   # delegieren ans zentrale ../tools/release/ (Dach)
 ```

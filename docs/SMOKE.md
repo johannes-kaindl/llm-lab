@@ -146,24 +146,43 @@ Punkt 19 rot. **Punkt 10 blieb dabei grün** — `adapter.stat()` liefert weiter
 nur liest sie niemand mehr. Die beiden Punkte messen also tatsächlich Verschiedenes; das ist
 der Grund, warum die Wirkung (Punkt 11) zusätzlich zur Zahl (Punkt 10) geprüft wird.
 
-## Ende-zu-Ende ueber die Plugin-Grenze — 2026-08-24, 9/9 gruen; erneut 2026-08-30, 9/9 gruen
+## Ende-zu-Ende ueber die Plugin-Grenze — 2026-08-24, 9/9 gruen; 2026-08-30, 9/9 und danach 2× 10/10 gruen
 
 **2026-08-30 (Task 8, `promptTemplateHash`/`apiVersion` 3, `feat/prompttemplate-hash`
 `e50f0ba` / vault-rag `1df2cd1`):** unveraendert 9/9, inklusive der Gegenprobe mit
 ausgeschlossenem Ordner. `apiVersion 3` am laufenden Plugin bestaetigt, der Feldname im
 geschriebenen Record ist `promptTemplateHash` (nicht mehr `systemPromptHash`).
 
-**Treiber-Befund, kein Produktbefund:** `scripts/e2e-crossplugin.ts` wrappt `api.log` mit
-einem durchreichenden Spy und raeumt am Ende nur `window.__e2e` weg
-(`delete window.__e2e;`), nicht den Wrapper selbst. Ein Folgeaufruf von `api.log` in
-derselben Fenster-Sitzung crasht dann in der toten Closure (`Cannot read properties of
-undefined (reading 'push')`) — **bevor** die echte Implementierung erreicht wird, was wie
-„log() schreibt nichts" aussieht. Gemessen bei der Vorbereitung von Step 5 (Handmessung im
-selben Fenster direkt nach `npm run smoke:e2e`). Umgehung fuer jede Handmessung danach: die
-beiden Plugins per `disablePlugin`/`enablePlugin` neu laden (macht der Treiber selbst zu
-Beginn seines eigenen Laufs — nur eben nicht am Ende fuer den, der nach ihm misst). Nicht
-behoben (Auftrag: keine Aenderung an Treibern/Produktivcode in dieser Task), nur
-diagnostiziert und umgangen.
+**2026-08-30 abends (Wrapper-Rueckbau, `a05ce0b`-Nachfolger):** **2× 10/10 gruen**,
+zwei Laeufe hintereinander im selben Fenster — genau die Gegenprobe, die es vorher nicht gab.
+Der zehnte Punkt ist neu („Aufraeumen setzt api.log zurueck"). Dazwischen die Handmessung,
+die im ersten Anlauf gekippt war: ein direkter `api.log()`-Aufruf im selben Fenster nach
+Lauf 1 vergab eine id, warf nichts und die Zeile stand wirklich auf der Platte
+(`api.__wrapped` und `window.__e2e` beide `undefined`).
+
+⚠️ **Ein gruener Pruefpunkt allein belegt hier nichts** — er prueft `typeof api.log ===
+"function"`, und das war die tote Closure auch. Deshalb zusaetzlich eine **Negativkontrolle**
+im selben Fenster: die alte Bauart nachgestellt (ungeschuetzter Wrapper, danach nur
+`delete window.__e2e`) und `api.log()` gerufen — sie liefert wortgleich
+`Cannot read properties of undefined (reading 'push')`, danach sofort zurueckgebaut. Erst
+damit ist gezeigt, dass der Pruefpunkt einen echten Fehlerfall abdeckt und nicht bloss einen,
+den es nicht mehr gibt.
+
+**Treiber-Befund, kein Produktbefund — behoben am 2026-08-30, s. Lauf unten.** Der Treiber
+wrappte `api.log` mit einem durchreichenden Spy und raeumte am Ende nur `window.__e2e` weg,
+nicht den Wrapper selbst. Ein Folgeaufruf von `api.log` in derselben Fenster-Sitzung starb
+dann in der toten Closure (`Cannot read properties of undefined (reading 'push')`) —
+**bevor** die echte Implementierung erreicht wurde, was wie „log() schreibt nichts" aussah;
+`reportToLab` faengt den Fehler im Konsumenten weg, die Aufzeichnung hoerte also lautlos auf.
+Gemessen bei der Vorbereitung von Step 5 (Handmessung im selben Fenster direkt nach
+`npm run smoke:e2e`), und es hat die Abnahme im ersten Anlauf gekippt: das Produkt war
+fehlerfrei, der Prueftstand kaputt.
+
+**Was jetzt gilt:** der Treiber legt das Original in `api.__e2eOrig` ab und setzt es im
+Aufraeumblock zurueck (samt `__wrapped`, sonst ersetzt auch ein zweiter Lauf den toten
+Wrapper nicht mehr); zusaetzlich prueft der Wrapper selbst `window.__e2e`, weil der
+Aufraeumblock bei einem Abbruch gar nicht erst laeuft. **Pruefpunkt 10** misst es mit, die
+Gegenprobe ist ein zweiter Lauf im selben Fenster. Merksatz: **wer wrappt, muss un-wrappen.**
 
 Getrackt als `scripts/e2e-crossplugin.ts` (`npm run smoke:e2e`) — **nicht** Teil von
 `npm run gate` oder `smoke:gui`, weil er als einziger Treiber eine Fremdinstallation

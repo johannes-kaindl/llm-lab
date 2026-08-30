@@ -11,7 +11,10 @@
  * installiert im selben Vault, ein erreichbarer Chat-Endpunkt.
  *
  * Der Spy auf `api.log` **wrappt und reicht durch** — er ersetzt nichts, sonst pruefte man
- * wieder nur die eigene Haelfte.
+ * wieder nur die eigene Haelfte. Am Ende wird er **zurueckgebaut**: ein stehengebliebener
+ * Wrapper verschluckt still jeden spaeteren `log()`-Aufruf im selben Fenster, und weil der
+ * Konsument den Fehler wegfaengt, sieht das wie ein Produktfehler aus. Gegenprobe dafuer ist
+ * ein zweiter Lauf im selben Fenster; ein eigener Pruefpunkt am Schluss misst es mit.
  *
  * ```bash
  * npm run smoke:e2e            # Vault llm-lab, Port 9222
@@ -53,12 +56,22 @@ const readTrace = async () => cdp.evaluate<{ file: string | null; lines: string[
 `);
 
 // Spy, der DURCHREICHT — die echte Strecke bleibt vollstaendig.
+//
+// **Wer wrappt, muss un-wrappen.** Zwei Sicherungen, weil sie verschiedene Faelle decken:
+// (a) `__e2eOrig` haelt das Original, damit der Aufraeumblock unten es zuruecksetzen kann;
+// (b) der Wrapper prueft `window.__e2e` trotzdem, denn der Aufraeumblock laeuft NICHT, wenn
+// der Treiber vorher abbricht — und eine tote Closure, die auf `undefined.push` stirbt,
+// verschluckt danach still JEDEN `log()`-Aufruf im Fenster. `reportToLab` im Konsumenten
+// faengt den Fehler weg, die Aufzeichnung hoert also lautlos auf. Genau das hat am
+// 2026-08-30 eine Abnahme gekippt: der Prueftstand war kaputt und sah wie ein Produktfehler
+// aus (docs/SMOKE.md § Ende-zu-Ende).
 await cdp.evaluate(`
   window.__e2e = [];
   const api = app.plugins.plugins["llm-lab"].api;
   if (!api.__wrapped) {
     const orig = api.log.bind(api);
-    api.log = (i) => { window.__e2e.push(JSON.parse(JSON.stringify(i))); return orig(i); };
+    api.__e2eOrig = orig;
+    api.log = (i) => { if (window.__e2e) window.__e2e.push(JSON.parse(JSON.stringify(i))); return orig(i); };
     api.__wrapped = true;
   }
   return api.apiVersion;
@@ -127,12 +140,20 @@ const seen2 = await cdp.evaluate<number>(`return window.__e2e.length;`);
 record("…und das liegt am Filter, nicht daran, dass log() ungerufen blieb",
   seen2 === seen1.length + 1, `api.log() wurde ${seen2 - seen1.length}× zusaetzlich gerufen`);
 
-// Aufraeumen
-await cdp.evaluate(`
+// Aufraeumen — einschliesslich des Wrappers. Ohne das Zuruecksetzen von `__wrapped`
+// ersetzt auch ein ZWEITER Lauf im selben Fenster den toten Wrapper nicht mehr; die
+// Gegenprobe ist deshalb, `npm run smoke:e2e` zweimal hintereinander zu fahren.
+const clean = await cdp.evaluate<string>(`
   const p = app.plugins.plugins["llm-lab"];
   p.settings.excludedFolders = []; await p.saveData(p.settings);
-  delete window.__e2e; return "clean";
+  const api = p.api;
+  if (api.__e2eOrig) { api.log = api.__e2eOrig; delete api.__e2eOrig; }
+  delete api.__wrapped;
+  delete window.__e2e;
+  return api.__wrapped === undefined && typeof api.log === "function" ? "clean" : "dirty";
 `);
+record("Aufraeumen setzt api.log zurueck — kein toter Wrapper bleibt stehen",
+  clean === "clean", clean);
 
 console.log(`\n${ok.length}/${ok.length + bad.length} Pruefpunkte gruen`);
 if (bad.length) { console.log("\nOffen:"); bad.forEach(b => console.log("  ✗ " + b)); }
