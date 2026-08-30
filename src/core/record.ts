@@ -8,6 +8,10 @@ export interface TraceInput {
   model: string;
   endpointUrl: string;
   messages: ChatMessage[];
+  /** Der ueber Aufrufe hinweg STABILE Anteil des System-Prompts — ohne Retrieval-
+   *  Kontext, ohne Nutzereingabe. Nur Hash-Quelle: der Text selbst wandert nicht in
+   *  den Record (er steht ohnehin in `messages`). */
+  promptTemplate?: string;
   content: string;
   reasoning?: string;
   finishReason?: string;
@@ -17,8 +21,9 @@ export interface TraceInput {
 }
 
 /** FNV-1a, 32 bit. Kein kryptografischer Anspruch: der Hash soll zwei Prompt-Fassungen
- *  unterscheidbar machen, nicht Geheimnisse schuetzen. Bewusst ohne Node-Crypto —
- *  der Store sperrt Node-Builtins im Plugin-Code. */
+ *  unterscheidbar machen, nicht Geheimnisse schuetzen. Ob er das TUT, haengt daran, dass
+ *  der Aufrufer einen stabilen Text meldet — s. `promptTemplate`. Bewusst ohne
+ *  Node-Crypto: der Store sperrt Node-Builtins im Plugin-Code. */
 export function hashPrompt(text: string): string {
   let h = 0x811c9dc5;
   for (let i = 0; i < text.length; i++) {
@@ -39,7 +44,6 @@ function hostOf(url: string): string {
 }
 
 export function buildTraceRecord(input: TraceInput): TraceRecord {
-  const system = input.messages.find((m) => m.role === "system");
   return {
     id: input.id,
     ts: input.ts,
@@ -47,7 +51,7 @@ export function buildTraceRecord(input: TraceInput): TraceRecord {
     feature: input.feature,
     model: input.model,
     endpointHost: hostOf(input.endpointUrl),
-    ...(system ? { systemPromptHash: hashPrompt(system.content) } : {}),
+    ...(input.promptTemplate ? { promptTemplateHash: hashPrompt(input.promptTemplate) } : {}),
     messages: input.messages,
     response: {
       content: input.content,

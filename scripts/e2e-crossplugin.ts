@@ -62,7 +62,7 @@ await cdp.evaluate(`
     api.__wrapped = true;
   }
   return api.apiVersion;
-`).then(v => record("llm-lab meldet apiVersion 2 am laufenden Plugin", v === 2, `apiVersion ${v}`));
+`).then(v => record("llm-lab meldet apiVersion 3 am laufenden Plugin", v === 3, `apiVersion ${v}`));
 
 // Tippen, WARTEN, dann senden — nicht tippen-und-sofort-klicken: `currentPaths()` ist
 // pinned ∪ autoDocs, und autoDocs fuellt ein 400-ms-Debounce, den `submit()` abbricht.

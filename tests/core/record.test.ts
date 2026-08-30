@@ -39,20 +39,31 @@ describe("buildTraceRecord", () => {
     expect(r.error).toBe("aborted");
   });
 
-  it("stempelt den System-Prompt als Hash, damit ein Vergleich ueber Prompt-Aenderungen hinweg auffaellt", () => {
-    const a = buildTraceRecord(input);
-    const systemMsg = input.messages[1];
-    const b = buildTraceRecord({
-      ...input,
-      messages: [{ role: "system" as const, content: "Anders." }, systemMsg],
-    });
-    expect(a.systemPromptHash).not.toBe(b.systemPromptHash);
+  it("unterscheidet zwei Prompt-Fassungen am promptTemplate", () => {
+    const a = buildTraceRecord({ ...input, promptTemplate: "Du bist knapp." });
+    const b = buildTraceRecord({ ...input, promptTemplate: "Du bist ausfuehrlich." });
+    expect(a.promptTemplateHash).toBeDefined();
+    expect(a.promptTemplateHash).not.toBe(b.promptTemplateHash);
   });
 
-  it("laesst systemPromptHash weg, wenn es keine System-Nachricht gibt", () => {
+  it("haelt den Hash stabil, wenn nur der Kontext in der System-Nachricht wechselt — der Befund vom 2026-08-23", () => {
     const userMsg = input.messages[1];
-    const r = buildTraceRecord({ ...input, messages: [userMsg] });
-    expect(r.systemPromptHash).toBeUndefined();
+    const mit = (kontext: string) => buildTraceRecord({
+      ...input,
+      promptTemplate: "Du bist knapp.",
+      messages: [{ role: "system" as const, content: `Du bist knapp.\n\n${kontext}` }, userMsg],
+    });
+    expect(mit("Notiz A").promptTemplateHash).toBe(mit("Notiz B").promptTemplateHash);
+  });
+
+  it("laesst den Hash weg, wenn kein promptTemplate gemeldet wird — auch bei vorhandener System-Nachricht", () => {
+    const r = buildTraceRecord(input);
+    expect(r.promptTemplateHash).toBeUndefined();
+  });
+
+  it("nimmt promptTemplate NICHT in den Record auf — es ist Hash-Quelle, kein Inhalt", () => {
+    const r = buildTraceRecord({ ...input, promptTemplate: "Du bist knapp." });
+    expect(r).not.toHaveProperty("promptTemplate");
   });
 });
 

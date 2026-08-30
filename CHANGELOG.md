@@ -6,13 +6,19 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
-## [Unreleased]
-
 ### Added
 - `npm run smoke:e2e` (`scripts/e2e-crossplugin.ts`) — belegt die Strecke ueber die
   echte Plugin-Grenze (vault-rag → `api.log()` → llm-lab → Platte), die beide
   GUI-Smokes strukturell ueberspringen. Setzt beide Plugins installiert voraus und
   ist deshalb nicht Teil von `gate`/`smoke:gui`.
+
+### Changed
+- **BREAKING (`apiVersion` 2 → 3):** Der Prompt-Hash im Trace identifiziert jetzt eine
+  Prompt-**Fassung** statt eines Aufrufs. Konsumenten melden dafür den stabilen Anteil ihres
+  System-Prompts als `promptTemplate`; im Record heißt das Feld `promptTemplateHash` und
+  ersetzt `systemPromptHash`. Ohne gemeldeten `promptTemplate` entsteht kein Hash — ein
+  fehlendes Feld statt eines mehrdeutigen. Konsumenten, die strikt auf `apiVersion` 2 prüfen,
+  schweigen bis zu ihrem Nachzug.
 
 ## [0.3.0] — 2026-08-24
 

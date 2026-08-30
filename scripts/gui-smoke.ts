@@ -227,10 +227,10 @@ async function main(): Promise<void> {
     `);
     // Der Treiber ist selbst ein Konsument dieses Vertrags — genau wie vault-rags
     // `lab_client.ts` traegt er die apiVersion als eigene Kopie und muss bei jedem Bump von
-    // `LLM_LAB_API_VERSION` (src/plugin_api.ts) manuell nachziehen. Aktueller Stand: 2 (seit
-    // 431c23c, "feat(api)!: apiVersion 2 — secrets und contextPaths auf LabLogInput").
+    // `LLM_LAB_API_VERSION` (src/plugin_api.ts) manuell nachziehen. Stand: 3 (seit dem Bump vom
+    // 2026-08-30, "feat(api)!: apiVersion 3 — promptTemplate auf LabLogInput"). Vorher 2 (431c23c).
     record("Anbieter-Vertrag haengt am Plugin-Objekt (apiVersion, status, log)",
-      vertrag.apiVersion === 2 && vertrag.recording === true && vertrag.logTyp === "function",
+      vertrag.apiVersion === 3 && vertrag.recording === true && vertrag.logTyp === "function",
       `apiVersion ${String(vertrag.apiVersion)} · recording ${String(vertrag.recording)}`);
     record("log() gibt die id SYNCHRON zurueck (kein Promise)",
       vertrag.ergebnisTyp === "string",
@@ -527,7 +527,7 @@ async function main(): Promise<void> {
     if (!tab.da) {
       // Ab Obsidian 1.13 sind die Einstellungen ein eigenes FENSTER — dann ist das Modal im
       // Workspace-Dokument nicht zu finden, und das sieht wie ein Plugin-Defekt aus.
-      const settingsCdp = await attachTo("settings", port);
+      const settingsCdp = await attachTo("settings", port, REPO_NAME);
       if (settingsCdp) { tabCdp = settingsCdp; tab = await settingsCdp.evaluate(TAB_LESEN(base)); }
     }
     if (!tab.da) {

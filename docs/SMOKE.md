@@ -112,6 +112,7 @@ anderen Schicht überdauert.
 
 | Datum | Obsidian | Ergebnis | Gegenprobe |
 |---|---|---|---|
+| 2026-08-30 | 1.13.7 (Vault `llm-lab`, Oberfläche en) | **38/38 grün** — Task 8 (`promptTemplateHash`, `apiVersion` 2 → 3), Branch `feat/prompttemplate-hash` `e50f0ba` | Vertrags-Prüfpunkt meldet `apiVersion 3` (nicht 2) — der Treiber lädt das Plugin zu Beginn frisch, der Fund wäre also ein veralteter Deploy, nicht Code |
 | 2026-08-24 | 1.13.7 (Vault `llm-lab`, Oberfläche de) | **38/38 grün** — Lauf vor dem 0.3.0-Release, nach der Wortlaut-Präzisierung der Ordner-Filter-Grenze (Settings-Text + beide READMEs) | — Text-, keine Struktur-Änderung; die drei `render`-Hatches und beide Renderer-Pfade sind im selben Lauf namentlich nachgewiesen |
 | 2026-08-23 | 1.13.7 (Vault `llm-lab`, Oberfläche de) | **23/23** | **19/23** mit vier eingebauten Defekten — genau die erwarteten Punkte rot, kein anderer fiel mit |
 | 2026-08-23 | 1.13.7 (Vault `llm-lab`, Oberfläche de) | **28/28** nach der Settings-API-Migration | **24/28** gegen den 0.1.0-Stand aus git (gebaut und deployt, derselbe neue Treiber): 22, 24, 25 und 26 rot, kein anderer fiel mit. Punkt 23 blieb erwartungsgemäß grün (s. Warnung oben). Punkt 26 trägt zusätzlich eine Gegenprobe im selben Lauf: Suchbegriff aus der eigenen Definition → 1 Treffer, Unsinn-Begriff → 0 |
@@ -126,7 +127,24 @@ Punkt 19 rot. **Punkt 10 blieb dabei grün** — `adapter.stat()` liefert weiter
 nur liest sie niemand mehr. Die beiden Punkte messen also tatsächlich Verschiedenes; das ist
 der Grund, warum die Wirkung (Punkt 11) zusätzlich zur Zahl (Punkt 10) geprüft wird.
 
-## Ende-zu-Ende ueber die Plugin-Grenze — 2026-08-24, 9/9 gruen
+## Ende-zu-Ende ueber die Plugin-Grenze — 2026-08-24, 9/9 gruen; erneut 2026-08-30, 9/9 gruen
+
+**2026-08-30 (Task 8, `promptTemplateHash`/`apiVersion` 3, `feat/prompttemplate-hash`
+`e50f0ba` / vault-rag `1df2cd1`):** unveraendert 9/9, inklusive der Gegenprobe mit
+ausgeschlossenem Ordner. `apiVersion 3` am laufenden Plugin bestaetigt, der Feldname im
+geschriebenen Record ist `promptTemplateHash` (nicht mehr `systemPromptHash`).
+
+**Treiber-Befund, kein Produktbefund:** `scripts/e2e-crossplugin.ts` wrappt `api.log` mit
+einem durchreichenden Spy und raeumt am Ende nur `window.__e2e` weg
+(`delete window.__e2e;`), nicht den Wrapper selbst. Ein Folgeaufruf von `api.log` in
+derselben Fenster-Sitzung crasht dann in der toten Closure (`Cannot read properties of
+undefined (reading 'push')`) — **bevor** die echte Implementierung erreicht wird, was wie
+„log() schreibt nichts" aussieht. Gemessen bei der Vorbereitung von Step 5 (Handmessung im
+selben Fenster direkt nach `npm run smoke:e2e`). Umgehung fuer jede Handmessung danach: die
+beiden Plugins per `disablePlugin`/`enablePlugin` neu laden (macht der Treiber selbst zu
+Beginn seines eigenen Laufs — nur eben nicht am Ende fuer den, der nach ihm misst). Nicht
+behoben (Auftrag: keine Aenderung an Treibern/Produktivcode in dieser Task), nur
+diagnostiziert und umgangen.
 
 Getrackt als `scripts/e2e-crossplugin.ts` (`npm run smoke:e2e`) — **nicht** Teil von
 `npm run gate` oder `smoke:gui`, weil er als einziger Treiber eine Fremdinstallation
@@ -162,6 +180,86 @@ Zwei Folgerungen ueber diesen Lauf hinaus:
   Formulierung im Settings-Tab und in beiden READMEs sprach von *Plugins* und legte damit
   „vault-rag meldet Pfade, also ist vault-rag abgedeckt" nahe. Wortlaut am 2026-08-24
   praezisiert.
+
+## Gegenprobe `promptTemplateHash` — 2026-08-30, die eigentliche Abnahme des Vorhabens
+
+Task 8 (`promptTemplateHash`, `apiVersion` 2 → 3) loest genau das Problem, das die
+Konsumenten-Abnahme unten am 2026-08-23 gefunden hatte: `systemPromptHash` trennte auf
+vault-rags Chat-Pfad keine Prompt-Fassungen, sondern Aufrufe. Gegen den alten Code ergaben
+zwei Fragen an denselben unveraenderten Prompt zwei verschiedene Hashes (`43b854f4` /
+`93712a00`). Die Abnahme dafuer: **zwei Chat-Fragen mit unterschiedlichem Retrieval-Kontext
+stellen und pruefen, ob beide Records denselben Hash tragen.**
+
+Gefahren im Vault `llm-lab`, beide Plugins frisch geladen, ueber die echte Oberflaeche
+(Eingabefeld tippen, auf Kontext-Chips warten, senden — wie in `smoke:e2e`):
+
+- **Chat, Frage A** ("Fasse zusammen, was in 'Latency and first token' steht.") →
+  `promptTemplateHash: "ee498b56"`. Kontext: 5 Notizen, System-Nachricht über 2.000 Zeichen
+  inkl. aller fuenf Notizinhalte.
+- **Chat, Frage B**, in derselben Konversation weitergefragt ("Was sagt 'Keeping recordings
+  small' zur Trace-Groesse?") → `promptTemplateHash: "ee498b56"` — **identisch zu A**,
+  obwohl die tatsaechliche System-Nachricht laenger ist (traegt jetzt zusaetzlich Frage A
+  und die Antwort darauf) und die zweite Nutzerfrage komplett anders lautet.
+- **`reformat:freetext`, Anweisung A** ("Fasse das in einem Satz auf Englisch zusammen.") →
+  `promptTemplateHash: "55d55d47"`.
+- **`reformat:freetext`, Anweisung B** ("Formuliere das als Frage um.") →
+  `promptTemplateHash: "55d55d47"` — **identisch zu A**, trotz komplett anderer Anweisung
+  im System-Prompt (die Anweisung selbst steht wörtlich in der System-Nachricht, `def.
+  promptTemplate()` liefert fuer `freetext` aber nur die feste Basis-Instruktion, nicht die
+  Anweisung).
+
+**Ergebnis: das Vorhaben erreicht sein Ziel.** Der Hash bleibt je Feature stabil, unabhaengig
+von Retrieval-Kontext, Konversationsverlauf und (bei `freetext`) der Nutzer-Anweisung —
+genau die Eigenschaft, die `systemPromptHash` auf demselben Pfad nicht hatte. Die beiden
+Feature-Hashes (`chat` vs. `reformat:freetext`) unterscheiden sich voneinander, wie erwartet
+(verschiedene Templates) — verglichen wird nur INNERHALB eines Features.
+
+**Nicht in dieser Messung, aber strukturell bekannt:** `feature: "smart-apply"` liefert selbst
+zwei stabile Hashes, keinen einzigen — `buildRestructurePrompt` baut fuer den Modus „additiv"
+eine andere System-Nachricht als fuer die uebrigen Modi. Korrekt, weil es zwei Fassungen sind,
+aber eine Auswertung, die nur nach `feature` gruppiert, sieht zwei Cluster ohne erkennbaren
+Grund.
+
+**Treiber-Falle dabei, dieselbe wie oben:** der erste Versuch dieser Messung schrieb ueberhaupt
+keine Trace-Zeilen — nicht weil `shouldLog` sie verwarf, sondern weil der vorangegangene
+`smoke:e2e`-Lauf im selben Fenster `api.log` bereits mit einer toten Closure ueberschrieben
+hatte (s. oben). Nach dem Neuladen beider Plugins lief die Messung sauber.
+
+## GUI-Smoke vault-rag (Staging-Vault `vault-rag`, separat vom Vault `llm-lab`) — 2026-08-30
+
+`npm run smoke:gui -- --vault vault-rag` in vault-rag selbst, gegen `1df2cd1` (deployt).
+**25/30 gruen.** Fuenf rote Punkte, zwei davon sind der bekannte, dokumentierte
+Deckungsluecken-Fund dieser Fixture (nur je EIN Endpunkt konfiguriert — "Zeile 2 traegt den
+Prioritaets-Knopf", "Klick setzt die Zeile an die Spitze"), **kein Rueckschritt.**
+
+**Die anderen drei sind neu und ein Treiber-/Umgebungs-Befund, keine Produktregression:**
+"Embedding: genau eine Zeile als aktiv markiert" (0 von 1), "Chat: genau eine Zeile als aktiv
+markiert" (0 von 1) und "Alle Zustandstexte sind bekannte Formulierungen" (`"active",
+"active"`) schlagen fehl, weil `scripts/gui-smoke.ts` die Zustandstexte hart gegen deutsche
+Literale prueft (`aktiv`, `nicht erreichbar`, `pruefe…`, …), die Obsidian-Instanz in diesem
+Lauf aber mit Oberflaeche **en** lief (`localStorage.getItem("language") === "en"`,
+`moment.locale() === "en"` — gemessen per CDP direkt am Fenster) und deshalb "active" statt
+"aktiv" rendert. Dieselbe Instanz zeigte auch fuer den Vault `llm-lab` "Oberflaeche en"
+(s. Tabelle oben) — die Sprache ist eine Eigenschaft des **laufenden Obsidian-Prozesses**,
+nicht des einzelnen Vaults, und acht Vault-Fenster liefen zum Zeitpunkt dieses Laufs
+gleichzeitig in derselben Instanz (mehrere parallele Sessions). Die Sprache selbst zu
+korrigieren wurde bewusst unterlassen, um laufende Messungen anderer Sessions am selben
+Port nicht zu stoeren. Betroffen ist ausschliesslich das Rendering der Endpunkt-Zustandszeile
+in vault-rags eigenem UI-Code (`i18n`-Text) plus die Haertung des dortigen Treibers gegen
+Nicht-Deutsch — beides liegt ausserhalb dieser Task (keine Aenderung an vault-rag-Code, nur
+gemessen und eingeordnet). Mit deutscher Oberflaeche waeren nach dieser Diagnose 27/30 zu
+erwarten (die zwei Endpunkt-Luecken bleiben bestehen).
+
+Ein separat gefahrener Direktvergleich der zugrundeliegenden Such-Funktion (`api.search()`
+sechsmal einzeln statt gebuendelt in einer CDP-Runde) bestaetigt, dass die Retrieval-Logik
+selbst intakt ist: **6/6 Notizen finden sich ueber ihren eigenen Wortlaut** (Rang 0) — genau
+der Wert, den der reguläre Lauf oben auch zeigt. Der erste Versuch des GUI-Smoke war an
+diesem Punkt in ein hartes `Runtime.evaluate`-Timeout (30 s) gelaufen, weil das dort
+konfigurierte Embedding-Modell (`qwen3-embedding:8b`) beim ersten (kalten) Aufruf in dieser
+Session mehrere Sekunden pro Embedding brauchte und der Pruefpunkt bis zu sechs solcher
+Aufrufe in einer einzigen CDP-Runde buendelt (6× > 30 s); nach dem Aufwaermen (Modell im
+Speicher) lag derselbe Aufruf bei 150-190 ms und der volle Lauf kam durch. Reiner
+Kaltstart-/Timeout-Effekt der Umgebung, keine Code-Aenderung noetig oder vorgenommen.
 
 ## Konsumenten-Abnahme (Handover-Schritte 6, 8, 9, 10, 11)
 
@@ -218,3 +316,10 @@ Bewertungs-Schicht nicht erben darf. Wer Slice 2 baut, braucht entweder einen Ha
 Apply schickt einen System-Prompt ohne Retrieval-Kontext (958 Zeichen), dort ist der Hash
 stabil und tut genau das, was `record.ts` verspricht. Ein Feld, das je nach aufrufendem
 Feature etwas anderes bedeutet, ist deshalb das Problem — nicht ein kaputter Hash.
+
+**Aufgelöst mit `apiVersion` 3 (2026-08-30).** Der Konsument meldet den stabilen Prompt-Anteil
+als `promptTemplate`; daraus entsteht `promptTemplateHash`. Ohne Meldung entsteht kein Hash —
+bewusst kein Rückfall auf die ganze System-Nachricht, weil ein mehrdeutiges Feld schlimmer ist
+als ein fehlendes. Die Nachmessung beim Entwurf fand einen zweiten Fall, den diese Abnahme
+übersehen hatte: `reformat:freetext` trägt die Nutzer-Anweisung im System-Prompt und war
+ebenso instabil — die Abnahme hatte `reformat:to-list` gefahren, das stabil ist.
