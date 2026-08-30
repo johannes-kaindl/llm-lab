@@ -16,13 +16,32 @@ und nicht in der Verdrahtung eines Konsumenten.
 
 ## Aufruf
 
+⚠️ **Zuerst prüfen, wer sonst an Obsidian hängt.** Obsidian ist Single-Instance — ein
+`quit` trifft die Instanz, an der möglicherweise eine andere Session arbeitet, und zerstört
+deren Zustand. Der eigene Lauf ist danach sauber grün; der Schaden entsteht woanders und
+fällt nicht auf.
+
 ```bash
-export STAGING_VAULTS_DIR="$HOME/StagingVaults"
+lsof -nP -iTCP:9222 -sTCP:LISTEN >/dev/null && echo "läuft bereits — NICHT beenden"
+```
+
+Hört der Port schon, dann **mitnutzen statt neu starten**: ein eigenes Fenster per
+`vault-open` über IPC öffnen — der Treiber wählt es über `--vault` aus, nicht über die
+Reihenfolge. Ein Neustart ist für diesen Treiber **keine** Betriebsbedingung (anders als für
+`shots`-Rezepte, die je Bild einen frischen Start brauchen). ⚠️ Die Port-Prüfung ersetzt die
+Frage nicht: sie zeigt aktive CDP-Treiber, aber nicht, wer ein Fenster offen hält oder auf
+den Port wartet.
+
+Erst wenn nichts läuft — oder nach Absprache mit dem, der es benutzt — gilt das Rezept unten.
+
+```bash
+export STAGING_VAULTS_DIR=<verzeichnis ausserhalb der Repos>   # Ort: ../../AGENTS.md
 
 # einmalig / nach Fixture-Änderungen: Aufnahme-Vault aus docs/images/fixture/ bauen
 npm run build && npm run smoke:gui -- --setup
-#   danach Obsidian beenden, den Vault in ~/Library/Application Support/obsidian/obsidian.json
-#   auf "open": true setzen und neu starten:
+#   danach den Vault in ~/Library/Application Support/obsidian/obsidian.json auf
+#   "open": true setzen. Läuft schon ein Obsidian, reicht es, den Vault dort zusätzlich
+#   zu öffnen; nur wenn nichts läuft (oder nach Absprache):
 #   pkill -x Obsidian && open -a Obsidian --args --remote-debugging-port=9222
 
 npm run smoke:gui -- --vault llm-lab

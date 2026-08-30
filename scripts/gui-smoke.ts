@@ -19,8 +19,25 @@
  *
  * ## Voraussetzung
  *
- * Obsidian muss mit offenem Debug-Port laufen — der einzige Handgriff, der Handarbeit
- * bleibt, weil die App dafuer neu starten muss:
+ * ⚠️ **Zuerst pruefen, wer sonst an Obsidian haengt.** Obsidian ist Single-Instance — ein
+ * `quit` trifft die Instanz, an der moeglicherweise eine andere Session arbeitet, und
+ * zerstoert deren Zustand. Der eigene Lauf ist danach sauber gruen; der Schaden entsteht
+ * woanders und faellt nicht auf.
+ *
+ * ```bash
+ * lsof -nP -iTCP:9222 -sTCP:LISTEN >/dev/null && echo "laeuft bereits — NICHT beenden"
+ * ```
+ *
+ * Hoert der Port schon, dann **mitnutzen statt neu starten**: ein eigenes Fenster per
+ * `vault-open` ueber IPC oeffnen, dann `attachTo("workspace", port, vault)` — der Vault-Name
+ * waehlt, nicht die Reihenfolge. Genau das tut dieser Treiber ohnehin (`--vault`), ein
+ * Neustart ist fuer ihn also KEINE Betriebsbedingung. ⚠️ Die Port-Pruefung ersetzt die Frage
+ * nicht: sie zeigt aktive CDP-Treiber, aber nicht, wer ein Fenster offen haelt oder auf den
+ * Port wartet.
+ *
+ * Erst wenn nichts laeuft — oder nach Absprache mit dem, der es benutzt — gilt das Rezept
+ * unten. Obsidian muss dann mit offenem Debug-Port laufen; das ist der einzige Handgriff,
+ * der Handarbeit bleibt, weil die App dafuer neu starten muss:
  *
  * ```bash
  * osascript -e 'quit app "Obsidian"'
@@ -30,7 +47,7 @@
  * Der Aufnahme-Vault wird aus dem getrackten Fixture gebaut (`docs/images/fixture/`):
  *
  * ```bash
- * export STAGING_VAULTS_DIR="$HOME/StagingVaults"
+ * export STAGING_VAULTS_DIR=<verzeichnis ausserhalb der Repos>   # Ort: ../AGENTS.md
  * npm run build && npm run smoke:gui -- --setup      # Vault bauen, danach Obsidian oeffnen
  * npm run smoke:gui -- --vault llm-lab               # Lauf
  * ```
@@ -151,7 +168,11 @@ async function main(): Promise<void> {
   if (!cdp) {
     throw new Error(
       `Kein Obsidian-Fenster fuer Vault "${vaultName}" auf Port ${port}.\n`
-      + "  osascript -e 'quit app \"Obsidian\"' && open -a Obsidian --args --remote-debugging-port=9222",
+      + "  Laeuft dort schon ein Obsidian mit ANDEREN Vaults: NICHT beenden — ein Quit\n"
+      + "  zerstoert den Zustand einer fremden Session, und der eigene Lauf ist danach\n"
+      + "  trotzdem gruen. Stattdessen ein eigenes Fenster dazuhaengen (vault-open per IPC).\n"
+      + "  Hoert der Port gar nicht (lsof -nP -iTCP:9222 -sTCP:LISTEN), dann neu starten:\n"
+      + "    osascript -e 'quit app \"Obsidian\"' && open -a Obsidian --args --remote-debugging-port=9222",
     );
   }
   // Ein Fenster im Hintergrund liefert einen leeren DOM, waehrend die App-API korrekt
