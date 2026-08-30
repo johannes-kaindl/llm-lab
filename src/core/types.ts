@@ -13,8 +13,12 @@ export interface TraceRecord {
   model: string;
   /** NUR Host und Port. Pfad und Query koennen Schluessel tragen. */
   endpointHost: string;
-  /** Fehlt, wenn der Aufruf keine System-Nachricht hatte. */
-  systemPromptHash?: string;
+  /** FNV-1a ueber den STABILEN Anteil des System-Prompts, den der Aufrufer meldet
+   *  (`promptTemplate`) — identifiziert eine Prompt-FASSUNG, nicht einen Aufruf.
+   *  Fehlt, wenn der Aufrufer nichts gemeldet hat. Bewusst kein Rueckfall auf die
+   *  ganze System-Nachricht: die traegt je nach Pfad Retrieval-Kontext oder eine
+   *  Nutzereingabe, und ein Hash darueber gruppiert nichts. */
+  promptTemplateHash?: string;
   messages: ChatMessage[];
   response: { content: string; reasoning?: string };
   finishReason?: string;
