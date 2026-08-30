@@ -59,10 +59,9 @@ export function createLlmLabApi(deps: ApiDeps): LlmLabApi {
 
     log(input: LabLogInput): string {
       // Die Zusage ist "log() wirft nie" — ein Konsument ruft synchron mitten in seinem
-      // eigenen Streaming-Pfad auf und darf dabei nie reissen, auch nicht bei einem
-      // fehlerhaften Input (`buildTraceRecord` liest z.B. `input.messages.find(...)`
-      // unbewacht). Die Garantie gehoert der Seite, die sie verspricht, nicht jedem
-      // Aufrufer einzeln.
+      // eigenen Streaming-Pfad auf und darf dabei nie reissen, auch nicht bei fehlerhaftem
+      // Input. Die Garantie gehoert der Seite, die sie verspricht, nicht jedem Aufrufer
+      // einzeln (Details zum Guard direkt unten im try-Block).
       const id = deps.newId();
       try {
         // Fail-closed vor der Store-Grenze: ein Konsument kommt ohne Typpruefung durch die
