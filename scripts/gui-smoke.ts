@@ -527,7 +527,7 @@ async function main(): Promise<void> {
     if (!tab.da) {
       // Ab Obsidian 1.13 sind die Einstellungen ein eigenes FENSTER — dann ist das Modal im
       // Workspace-Dokument nicht zu finden, und das sieht wie ein Plugin-Defekt aus.
-      const settingsCdp = await attachTo("settings", port);
+      const settingsCdp = await attachTo("settings", port, REPO_NAME);
       if (settingsCdp) { tabCdp = settingsCdp; tab = await settingsCdp.evaluate(TAB_LESEN(base)); }
     }
     if (!tab.da) {
