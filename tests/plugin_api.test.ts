@@ -85,10 +85,11 @@ describe("LlmLabApi", () => {
   });
 
   it("wirft nie — auch bei fehlerhaftem Input liefert log() eine id", () => {
-    // buildTraceRecord() liest input.messages.find(...) unbewacht; ein Konsument, der
-    // hier etwas Falsches uebergibt, darf trotzdem nie in seinem eigenen Streaming-Pfad
-    // reissen. Der Cast ueber unknown ist bewusst: ein echter Fremdplugin-Aufruf kommt
-    // ohne Typprüfung durch die Plugin-Grenze.
+    // `log()` prueft `messages` explizit, bevor irgendetwas gebaut oder geschrieben wird:
+    // ein Konsument, der hier etwas Falsches uebergibt, darf nie in seinem eigenen
+    // Streaming-Pfad reissen — und es darf auch kein Muell-Record entstehen. Der Cast ueber
+    // unknown ist bewusst: ein echter Fremdplugin-Aufruf kommt ohne Typpruefung durch die
+    // Plugin-Grenze.
     const malformed = { ...input, messages: "not-an-array" } as unknown as typeof input;
     const { api, write } = makeApi();
     let id: string | undefined;
@@ -101,8 +102,8 @@ describe("LlmLabApi", () => {
 });
 
 describe("LabLogInput — die Slice-2-Felder", () => {
-  it("meldet Vertragsversion 2", () => {
-    expect(LLM_LAB_API_VERSION).toBe(2);
+  it("meldet Vertragsversion 3", () => {
+    expect(LLM_LAB_API_VERSION).toBe(3);
   });
 
   it("schreibt weder secrets noch contextPaths in den Record", () => {

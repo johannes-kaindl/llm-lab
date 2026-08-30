@@ -60,6 +60,11 @@ describe("buildTraceRecord", () => {
     const r = buildTraceRecord(input);
     expect(r.promptTemplateHash).toBeUndefined();
   });
+
+  it("nimmt promptTemplate NICHT in den Record auf — es ist Hash-Quelle, kein Inhalt", () => {
+    const r = buildTraceRecord({ ...input, promptTemplate: "Du bist knapp." });
+    expect(r).not.toHaveProperty("promptTemplate");
+  });
 });
 
 describe("hashPrompt", () => {

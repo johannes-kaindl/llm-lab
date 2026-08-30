@@ -4,8 +4,10 @@ import type { TraceStore } from "./core/trace_store";
 
 /** Version des oeffentlichen Vertrags. Wird bei jeder brechenden Aenderung erhoeht;
  *  Konsumenten pruefen sie, bevor sie sich auf die Form verlassen.
- *  2 (2026-08-23): `secrets` und `contextPaths` auf LabLogInput. */
-export const LLM_LAB_API_VERSION = 2;
+ *  2 (2026-08-23): `secrets` und `contextPaths` auf LabLogInput.
+ *  3 (2026-08-30): `promptTemplate` auf LabLogInput; `systemPromptHash` im Record
+ *  entfaellt zugunsten von `promptTemplateHash`. */
+export const LLM_LAB_API_VERSION = 3;
 
 export interface LabStatus {
   apiVersion: number;
@@ -63,6 +65,16 @@ export function createLlmLabApi(deps: ApiDeps): LlmLabApi {
       // Aufrufer einzeln.
       const id = deps.newId();
       try {
+        // Fail-closed vor der Store-Grenze: ein Konsument kommt ohne Typpruefung durch die
+        // Plugin-Grenze, und ein Record mit kaputtem `messages` waere nicht nur Datenmuell —
+        // `redactPii` arbeitet feldweise ueber `messages[]` und liefe an einem Nicht-Array
+        // ins Leere, statt zu schwaerzen. Bis 2026-08-30 ergab sich dieselbe Wirkung
+        // zufaellig daraus, dass `buildTraceRecord` `messages.find(...)` unbewacht las; seit
+        // der Hash ueber `promptTemplate` laeuft, tut es das nicht mehr. Jetzt steht es da,
+        // wo die Zusage lebt.
+        if (!Array.isArray(input.messages)) {
+          throw new TypeError("LLM Lab: log() erwartet messages als Array");
+        }
         if (!shouldLog(input, deps.paused(), deps.settings())) return id;
         const settings = deps.settings();
         // `secrets` und `contextPaths` sind Steuerdaten DIESES Aufrufs, kein

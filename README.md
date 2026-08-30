@@ -191,10 +191,10 @@ disk asynchronously, so a caller mid-stream is never slowed down or blocked by l
 the API defensively (LLM Lab may not be installed) and never `await` `log()` — it has nothing
 to await.
 
-**`apiVersion` is `2`.** Check it against your own constant before relying on the shape — that
+**`apiVersion` is `3`.** Check it against your own constant before relying on the shape — that
 version number is the contract, deliberately in place of a compile-time dependency between two
-independent repositories. Version 2 added two optional fields to the log input, both of which a
-consumer should fill in if it can:
+independent repositories. Version 3 adds a third optional field, on top of the two from version
+2 — a consumer should fill in all it can:
 
 - **`secrets?: string[]`** — the endpoint keys used for this call. They are used only as a
   masking list and never become part of the record. Without them, only verbatim `Bearer`
@@ -202,6 +202,10 @@ consumer should fill in if it can:
 - **`contextPaths?: string[]`** — the vault paths of the notes whose content went into this
   call. This is what the user's folder exclusion is evaluated against; a call that reports no
   paths is always recorded.
+- **`promptTemplate?: string`** — the stable part of your system prompt: the wording that
+  identifies a prompt *version*, without retrieval context and without user input. LLM Lab
+  hashes it into `promptTemplateHash`. Report nothing and no hash is recorded — deliberately,
+  because a hash over a system prompt that carries per-call content groups nothing.
 
 See [`AGENTS.md`](AGENTS.md) for the full contract and the reasoning behind it.
 

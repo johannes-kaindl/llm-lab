@@ -43,7 +43,7 @@ Modell auf — es zeichnet nur auf, was ein anderes Plugin bereits gesendet und 
 ```
 llm-lab                                vault-rag / koda-agent / vault-crews / obsidian-transmute
   plugin.api ─────────────────────────► app.plugins.plugins["llm-lab"]?.api?.log(record)
-  { apiVersion: 2, status(), log() }
+  { apiVersion: 3, status(), log() }
 ```
 
 Nicht verhandelbare Eigenschaften:
@@ -70,6 +70,11 @@ Nicht verhandelbare Eigenschaften:
   Anwendung dieser Regel im Workspace — ein Konsument, der strikt auf `1` prüft, schweigt
   bis zu seinem Nachzug, und genau das soll er tun. Der Preis ist ein koordiniertes
   Doppel-Release in fester Reihenfolge: **Anbieter zuerst, Konsument danach.**
+
+  **Sie steht seit 2026-08-30 auf `3`** (`LLM_LAB_API_VERSION`, `plugin_api.ts`): `LabLogInput`
+  trägt zusätzlich `promptTemplate?: string` — den stabilen Anteil des System-Prompts. Das ist
+  der zweite Bump; das Verfahren (Anbieter zuerst, Konsument danach) ist damit kein Einzelfall
+  mehr, sondern der eingespielte Weg.
 
 ### Verhältnis zum Kit
 
@@ -146,14 +151,16 @@ Muster-Ersetzung zerreißt nichts, was noch geschwärzt werden müsste — nicht
 Schlüssel-Maskierung erzeugt (`••••`, `Bearer ••••`), matcht EMAIL/IBAN/PHONE/URLCRED. Die
 Regel dahinter: **wer exakt matcht, muss laufen, bevor wer Muster umschreibt.**
 
-**Was die erste Abnahme gegen einen echten Konsumenten über das Feldset ergeben hat:**
-`systemPromptHash` trennt auf vault-rags Chat-Pfad **keine Prompt-Fassungen, sondern Aufrufe** —
-der Retrieval-Kontext steckt dort in der System-Nachricht, also ändert sich der Hash mit jeder
-Frage (gemessen 2026-08-23: zwei Fragen an denselben unveränderten Prompt ergaben zwei Hashes).
-Der Code tut, was `record.ts` sagt; die dokumentierte *Absicht* („zwei Prompt-Fassungen
-unterscheidbar machen") trägt auf diesem Pfad nicht. Wer die Bewertungs-Schicht baut, braucht
-einen Hash über den stabilen Prompt-Anteil oder ein eigenes Feld — Details und Messwerte in
-`docs/SMOKE.md` § Konsumenten-Abnahme.
+**Was die erste Abnahme gegen einen echten Konsumenten über das Feldset ergeben hat — und wie
+es aufgelöst wurde.** `systemPromptHash` trennte auf vault-rags Chat-Pfad **keine
+Prompt-Fassungen, sondern Aufrufe**: der Retrieval-Kontext steckt dort in der System-Nachricht,
+also änderte sich der Hash mit jeder Frage (gemessen 2026-08-23). Beim Entwurf der Korrektur
+zeigte die Nachmessung über alle vier Trace-Pfade, dass es kein Chat-Sonderfall war —
+`reformat:freetext` trägt die Nutzer-Anweisung im System-Prompt und hatte denselben Defekt,
+während `reformat:to-list` und `smart-apply` stabil waren. **Ein Feld, dessen Bedeutung vom
+aufrufenden Pfad abhängt, war das Problem — nicht ein kaputter Hash.** Seit `apiVersion` 3
+meldet der Konsument den stabilen Anteil selbst (`promptTemplate`), und ohne Meldung entsteht
+gar kein Hash. Messwerte in `docs/SMOKE.md` § Konsumenten-Abnahme.
 
 `TraceStore.writeNow` (`src/core/trace_store.ts`) ist die einzige Stelle, an der beide Läufe
 zusammengeführt werden — genau in dieser Reihenfolge, mit einem Kommentar-Block, der sie
@@ -227,8 +234,10 @@ beiden READMEs — nicht nur hier.
 core/
   types.ts          TraceRecord — das Feldset, das auf die Platte geschrieben wird.
   record.ts         TraceInput → TraceRecord: hashPrompt (FNV-1a, kein Krypto-Anspruch — nur
-                    unterscheidbar, nicht geheim) · hostOf (Host+Port aus einer URL, faellt
-                    auf "unbekannt" zurueck statt zu werfen) · buildTraceRecord.
+                    unterscheidbar, nicht geheim; laeuft seit `apiVersion` 3 ueber
+                    `promptTemplate`, nicht mehr ueber die System-Nachricht) · hostOf
+                    (Host+Port aus einer URL, faellt auf "unbekannt" zurueck statt zu
+                    werfen) · buildTraceRecord.
   redact_secrets.ts redactSecrets/redactRecordSecrets — Schlüssel-Maskierung, Lauf ist
                     unbedingt; die Liste ist die Vereinigung aus deps.secrets() (leer) und
                     den Aufruf-Schlüsseln (LabLogInput.secrets). Ohne Aufruf-Schlüssel wirkt

@@ -197,10 +197,10 @@ asynchron auf die Platte, damit ein Aufrufer mitten im Stream nie ausgebremst od
 wird. Die API defensiv lesen (LLM Lab ist womöglich nicht installiert) und `log()` **nie**
 `await`en — es gibt nichts zu erwarten.
 
-**`apiVersion` steht auf `2`.** Sie gegen die eigene Konstante prüfen, bevor man sich auf die
+**`apiVersion` steht auf `3`.** Sie gegen die eigene Konstante prüfen, bevor man sich auf die
 Form verlässt — diese Versionsnummer ist der Vertrag, bewusst anstelle einer Build-Kopplung
-zwischen zwei eigenständigen Repositories. Version 2 hat zwei optionale Felder ergänzt, die
-ein Konsument füllen sollte, wenn er kann:
+zwischen zwei eigenständigen Repositories. Version 3 ergänzt ein drittes optionales Feld zu
+den beiden aus Version 2 — ein Konsument sollte alle füllen, die er kann:
 
 - **`secrets?: string[]`** — die für diesen Aufruf verwendeten Endpunkt-Schlüssel. Sie dienen
   ausschließlich als Maskierungsliste und werden nie Teil des Records. Ohne sie werden nur
@@ -208,6 +208,10 @@ ein Konsument füllen sollte, wenn er kann:
 - **`contextPaths?: string[]`** — die Vault-Pfade der Notizen, deren Inhalt in diesen Aufruf
   eingeflossen ist. Daran wird der Ordner-Ausschluss des Nutzers gemessen; ein Aufruf ohne
   Pfade wird immer mitgeschrieben.
+- **`promptTemplate?: string`** — der stabile Anteil des System-Prompts: der Wortlaut, der eine
+  Prompt-*Fassung* ausmacht, ohne Retrieval-Kontext und ohne Nutzereingabe. LLM Lab bildet
+  daraus `promptTemplateHash`. Wer nichts meldet, bekommt keinen Hash — bewusst, denn ein Hash
+  über einen System-Prompt mit Aufruf-Inhalt gruppiert nichts.
 
 Der vollständige Vertrag und seine Begründung stehen in [`AGENTS.md`](AGENTS.md).
 

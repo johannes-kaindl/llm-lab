@@ -218,3 +218,10 @@ Bewertungs-Schicht nicht erben darf. Wer Slice 2 baut, braucht entweder einen Ha
 Apply schickt einen System-Prompt ohne Retrieval-Kontext (958 Zeichen), dort ist der Hash
 stabil und tut genau das, was `record.ts` verspricht. Ein Feld, das je nach aufrufendem
 Feature etwas anderes bedeutet, ist deshalb das Problem — nicht ein kaputter Hash.
+
+**Aufgelöst mit `apiVersion` 3 (2026-08-30).** Der Konsument meldet den stabilen Prompt-Anteil
+als `promptTemplate`; daraus entsteht `promptTemplateHash`. Ohne Meldung entsteht kein Hash —
+bewusst kein Rückfall auf die ganze System-Nachricht, weil ein mehrdeutiges Feld schlimmer ist
+als ein fehlendes. Die Nachmessung beim Entwurf fand einen zweiten Fall, den diese Abnahme
+übersehen hatte: `reformat:freetext` trägt die Nutzer-Anweisung im System-Prompt und war
+ebenso instabil — die Abnahme hatte `reformat:to-list` gefahren, das stabil ist.
