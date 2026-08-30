@@ -214,6 +214,12 @@ genau die Eigenschaft, die `systemPromptHash` auf demselben Pfad nicht hatte. Di
 Feature-Hashes (`chat` vs. `reformat:freetext`) unterscheiden sich voneinander, wie erwartet
 (verschiedene Templates) — verglichen wird nur INNERHALB eines Features.
 
+**Nicht in dieser Messung, aber strukturell bekannt:** `feature: "smart-apply"` liefert selbst
+zwei stabile Hashes, keinen einzigen — `buildRestructurePrompt` baut fuer den Modus „additiv"
+eine andere System-Nachricht als fuer die uebrigen Modi. Korrekt, weil es zwei Fassungen sind,
+aber eine Auswertung, die nur nach `feature` gruppiert, sieht zwei Cluster ohne erkennbaren
+Grund.
+
 **Treiber-Falle dabei, dieselbe wie oben:** der erste Versuch dieser Messung schrieb ueberhaupt
 keine Trace-Zeilen — nicht weil `shouldLog` sie verwarf, sondern weil der vorangegangene
 `smoke:e2e`-Lauf im selben Fenster `api.log` bereits mit einer toten Closure ueberschrieben

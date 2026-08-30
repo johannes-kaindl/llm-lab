@@ -211,7 +211,10 @@ den beiden aus Version 2 — ein Konsument sollte alle füllen, die er kann:
 - **`promptTemplate?: string`** — der stabile Anteil des System-Prompts: der Wortlaut, der eine
   Prompt-*Fassung* ausmacht, ohne Retrieval-Kontext und ohne Nutzereingabe. LLM Lab bildet
   daraus `promptTemplateHash`. Wer nichts meldet, bekommt keinen Hash — bewusst, denn ein Hash
-  über einen System-Prompt mit Aufruf-Inhalt gruppiert nichts.
+  über einen System-Prompt mit Aufruf-Inhalt gruppiert nichts. Besteht der gemeldete Wortlaut
+  aus übersetzten (i18n-)Bausteinen, ändert ein Wechsel der Obsidian-Oberflächensprache den
+  Wortlaut mit — und damit auch den Hash, zu Recht als neue Fassung gezählt, denn der Wortlaut
+  hat sich ja tatsächlich geändert.
 
 Der vollständige Vertrag und seine Begründung stehen in [`AGENTS.md`](AGENTS.md).
 

@@ -205,7 +205,10 @@ independent repositories. Version 3 adds a third optional field, on top of the t
 - **`promptTemplate?: string`** — the stable part of your system prompt: the wording that
   identifies a prompt *version*, without retrieval context and without user input. LLM Lab
   hashes it into `promptTemplateHash`. Report nothing and no hash is recorded — deliberately,
-  because a hash over a system prompt that carries per-call content groups nothing.
+  because a hash over a system prompt that carries per-call content groups nothing. If the
+  reported wording is built from localized (i18n) strings, a change of Obsidian's display
+  language changes the wording too — and with it the hash, correctly counting as a new
+  version, since the wording did change.
 
 See [`AGENTS.md`](AGENTS.md) for the full contract and the reasoning behind it.
 

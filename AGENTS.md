@@ -6,10 +6,12 @@ Workspace-weite Standards (comply-or-explain): siehe [`../_docs/CONVENTIONS.md`]
 
 **Profil:** `ts-node` · `obsidian-plugin`.
 
-**Stand 2026-08-23: Slice 1 gebaut, 0.1.0 und 0.2.0 released, beide Forges öffentlich, Store-
+**Stand 2026-08-30: Slice 1 gebaut, 0.1.0 bis 0.3.0 released, beide Forges öffentlich, Store-
 Einreichung steht aus (Developer Dashboard, Maintainer-Login). Die Vertragserweiterung
-(`apiVersion` 2 — `secrets`/`contextPaths`, Ordner-Filter) ist gebaut und liegt unter
-`[Unreleased]`, noch nicht released.** Für neue Vorhaben gilt: erst
+(`apiVersion` 2 — `secrets`/`contextPaths`, Ordner-Filter) ist mit 0.3.0 (2026-08-24) released.
+Die zweite Vertragserweiterung (`apiVersion` 3 — `promptTemplate`/`promptTemplateHash`, eine
+Prompt-*Fassung* statt eines einzelnen Aufrufs) ist gebaut und liegt unter `[Unreleased]`, noch
+nicht released.** Für neue Vorhaben gilt: erst
 Kit-first-Sondierung (`../AGENTS.md` + `../REGISTRY.md`), dann `superpowers:brainstorming` →
 Spec → Plan → TDD.
 
@@ -64,11 +66,11 @@ Nicht verhandelbare Eigenschaften:
 - **`apiVersion` ist der Vertrag, nicht der Compiler.** Zwei eigenständige Repos (PROF-OBS-09)
   dürfen kein Build-Coupling eingehen — ein Konsument kopiert die Form (`LabLogInput`),
   importiert sie nie, und prüft `apiVersion` gegen seine eigene Konstante, bevor er sich auf
-  die Form verlässt. **Sie steht seit 2026-08-23 auf `2`** (`LLM_LAB_API_VERSION`,
-  `plugin_api.ts`): `LabLogInput` trägt jetzt zusätzlich die beiden optionalen Steuerfelder
-  `secrets?: string[]` und `contextPaths?: string[]`. Der Bump ist die erste gemessene
-  Anwendung dieser Regel im Workspace — ein Konsument, der strikt auf `1` prüft, schweigt
-  bis zu seinem Nachzug, und genau das soll er tun. Der Preis ist ein koordiniertes
+  die Form verlässt. **Sie stand ab 2026-08-23 auf `2`** (`LLM_LAB_API_VERSION`,
+  `plugin_api.ts`): `LabLogInput` trug damit zusätzlich die beiden optionalen Steuerfelder
+  `secrets?: string[]` und `contextPaths?: string[]`. Der Bump war die erste gemessene
+  Anwendung dieser Regel im Workspace — ein Konsument, der strikt auf `1` prüfte, schwieg
+  bis zu seinem Nachzug, und genau das sollte er tun. Der Preis war ein koordiniertes
   Doppel-Release in fester Reihenfolge: **Anbieter zuerst, Konsument danach.**
 
   **Sie steht seit 2026-08-30 auf `3`** (`LLM_LAB_API_VERSION`, `plugin_api.ts`): `LabLogInput`
