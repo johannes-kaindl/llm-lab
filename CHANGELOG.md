@@ -6,6 +6,8 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.4.0] — 2026-08-30
+
 ### Added
 - `npm run smoke:e2e` (`scripts/e2e-crossplugin.ts`) — belegt die Strecke ueber die
   echte Plugin-Grenze (vault-rag → `api.log()` → llm-lab → Platte), die beide
