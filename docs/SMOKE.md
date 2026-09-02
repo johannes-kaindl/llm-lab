@@ -51,6 +51,29 @@ npm run smoke:gui -- --vault llm-lab
 `--keep` lässt Einstellungen und erfundene Trace-Dateien stehen, `--ignore-deploy` übergeht
 den Hash-Abgleich Arbeitsbaum ↔ Vault.
 
+**Läuft dieser Lauf gegen den eigenen Stand? Zwei Prüfungen, beide gegen den Pfad, den die
+LAUFENDE Instanz nennt** (`app.vault.adapter.basePath` + `app.vault.configDir`) — nicht gegen
+`stagingVaultDir("llm-lab")`:
+
+1. **Hash-Abgleich über drei Dateien** (`main.js`, `manifest.json`, `styles.css`): misst das
+   vergessene Kopieren. Bricht ab, `--ignore-deploy` übergeht ihn.
+2. **`requireEigenerBuild`** (zentral, `../tools/obsidian-cdp/vault.ts`): beantwortet die
+   Frage, gegen die `manifest.version` **strukturell blind** ist — Store-Build und Repo-Build
+   tragen dieselbe Nummer. `fehlt`/`store-installiert`/`fremd` brechen ab; `ungeklaert`
+   **warnt nur** und hängt die Warnung zusätzlich an die Abschlusszeile, damit ein Lauf ohne
+   belegte Herkunft nicht aussieht wie einer mit.
+
+⚠️ **Bis zum 2026-09-02 leitete der Hash-Abgleich seinen Prüfgegenstand aus der Konvention
+ab (`stagingVaultDir(REPO_NAME)`) statt aus dem Lauf.** Das ist der Fehlgriff aus Lesson
+2026-09-02 (kuro-gamification): der Treiber dockt per `--vault` an ein **beliebiges** Fenster
+an, der Abgleich prüfte aber immer die Datei im Staging-Pfad. Ein Lauf gegen `10_Pallas`
+(dort liegt der Store-Build) wäre grün durchgelaufen, während der Staging-Vault brav den
+Repo-Stand trug — der Check hätte also genau den Fall nicht gesehen, für den er da ist.
+Deshalb steht der Abgleich seither **hinter** `attachTo`, nicht mehr davor: vor dem Verbinden
+ist gar nicht bekannt, gegen welchen Vault gemessen wird. **Geprüft wird, was gemessen wird.**
+Dachweiter Anlass: am 2026-08-30 standen 69 von 150 grünen Prüfpunkten einer ganzen
+Smoke-Runde auf einem Build, der nicht belegt der Repo-Stand war.
+
 **Der Treiber lädt das Plugin selbst neu, bevor der erste inhaltliche Prüfpunkt läuft.**
 Grund: der Hash-Abgleich oben vergleicht nur **Dateien** (Arbeitsbaum vs. Vault), nicht was
 Obsidian gerade **geladen** hat. Das Plugin-Objekt im laufenden Fenster stammt vom letzten
@@ -131,6 +154,7 @@ anderen Schicht überdauert.
 
 | Datum | Obsidian | Ergebnis | Gegenprobe |
 |---|---|---|---|
+| 2026-09-02 | 1.13.7 (Vault `llm-lab`, Oberfläche de) | **38/38 grün** — Einbau des Herkunfts-Guards (Lesson 2026-09-02, kuro-gamification). Kopfzeile weist den gemessenen Pfad aus: `Vault: llm-lab (/…/60_StagingVaults/llm-lab/.obsidian/plugins/llm-lab)`. Keine Herkunftswarnung — Ausgang `deployt`, per sha1 belegt. | **Vollständig, alle vier Ausgänge einzeln — s. Tabelle unten.** Dazu der Beweis für den Umzug selbst: Lauf gegen ein **fremdes** Fenster (`--vault koda-agent`) bricht ab, während im Staging-Vault alle drei Dateien byte-identisch lagen — der alte Code wäre grün durchgelaufen |
 | 2026-08-30 | 1.13.7 (Vault `llm-lab`, Oberfläche en) | **38/38 grün** — Task 8 (`promptTemplateHash`, `apiVersion` 2 → 3), Branch `feat/prompttemplate-hash` `e50f0ba` | Vertrags-Prüfpunkt meldet `apiVersion 3` (nicht 2) — der Treiber lädt das Plugin zu Beginn frisch, der Fund wäre also ein veralteter Deploy, nicht Code |
 | 2026-08-24 | 1.13.7 (Vault `llm-lab`, Oberfläche de) | **38/38 grün** — Lauf vor dem 0.3.0-Release, nach der Wortlaut-Präzisierung der Ordner-Filter-Grenze (Settings-Text + beide READMEs) | — Text-, keine Struktur-Änderung; die drei `render`-Hatches und beide Renderer-Pfade sind im selben Lauf namentlich nachgewiesen |
 | 2026-08-23 | 1.13.7 (Vault `llm-lab`, Oberfläche de) | **23/23** | **19/23** mit vier eingebauten Defekten — genau die erwarteten Punkte rot, kein anderer fiel mit |
@@ -138,6 +162,41 @@ anderen Schicht überdauert.
 | 2026-08-23 | 1.13.7 (Vault `llm-lab`, Oberfläche de) | **28/28 grün** · **Baseline vor dem Treiber-Umbau der Slice-2-Vertragserweiterung** (mit den Kernänderungen, Treiber noch unverändert). Festgehalten, damit der Lauf nach dem Umbau von „anders grün" unterscheidbar bleibt. | — |
 | 2026-08-23 | 1.13.7 (Vault `llm-lab`, Oberfläche de) | **31/32** nach den vier neuen Prüfpunkten (16b–16e) für Schlüssel-Maskierung und Ordner-Filter — alle vier grün, die restlichen 27 der 28 alten Punkte unverändert grün. **Ein Befund, keine Nebenwirkung dieses Tasks:** Punkt 1 („Anbieter-Vertrag haengt am Plugin-Objekt … apiVersion, status, log") ist rot — der Treiber prüft `apiVersion === 1`, das Plugin liefert seit `431c23c` (`feat(api)!: apiVersion 2 — secrets und contextPaths auf LabLogInput`) `apiVersion 2`. Der Treiber wurde in dieser Session bewusst NICHT angepasst (Auftrag: keine Anpassung des Prüfpunkts an vorgefundenes Verhalten, kein Anfassen von Produktivcode) — Nacharbeit ist, die Konstante im Treiber auf `2` zu heben. **Behoben in der Fix-Runde 1 unten**, s. dort — die Ursache war nicht der Prüfpunkt selbst, sondern ein fehlender Reload vor den frühen Prüfpunkten. | — |
 | 2026-08-24 | 1.13.7 (Vault `llm-lab`, Oberfläche de) | **32/32 grün** — Fix-Runde 1 zu Task 6. Zwei Änderungen: (a) der Treiber lädt das Plugin jetzt direkt nach dem Hash-Abgleich neu, bevor der erste inhaltliche Prüfpunkt läuft (s. Hinweis unter „Aufruf"); (b) `vertrag.apiVersion === 1` im Vertrags-Prüfpunkt auf `=== 2` gehoben, mit Kommentar, dass diese Zahl bei jedem `LLM_LAB_API_VERSION`-Bump als Vertragskopie mitzieht — genau wie vault-rags `lab_client.ts`. Punkt 7 („Pause ueberlebt einen Neustart NICHT") blieb dabei unangetastet und weiterhin korrekt: `data.json traegt "paused": false · nach Reload recording true` — der vorgezogene Reload läuft vor Punkt 7s eigenem Toggle/Reload-Zyklus und stört ihn nicht, weil `paused` Sitzungszustand ist und über keinen Reload hinweg gesetzt bleibt. Alle 28 alten Punkte grün, keine Verschiebung sonst. | — |
+
+### Gegenprobe zum Herkunfts-Guard (2026-09-02) — alle vier Ausgänge
+
+Ein Guard, der nie gegen einen fremden Build lief, belegt nichts. Alle vier Ausgänge von
+`buildHerkunft` einzeln provoziert, jeder mit der Bedingung, unter der er **überhaupt
+erreichbar** ist:
+
+| Ausgang | Hergestellt durch | Gemessen |
+|---|---|---|
+| `fremd` | Vault-`main.js` verändert | Abbruch, „nicht der gebaute Repo-Stand" (exit 1) |
+| `store-installiert` | `nosourcemap`-Suffix **plus** Repo-`main.js` beiseite | Abbruch, „Store-Installation" (exit 1) |
+| `ungeklaert` | nur Repo-`main.js` beiseite | **Warnung, kein Abbruch** (exit 0) — Abschlusszeile trägt den Hinweis |
+| `fehlt` | Vault-`main.js` beiseite | Abbruch, „liegt keine main.js" (exit 1) |
+
+Alle vier mit `--ignore-deploy`, sonst schlägt der 3-Datei-Hash-Abgleich zuerst zu und die
+Gegenprobe misst den falschen Guard. Rückbau per `trap`, gegen den Ausgangsstand gehasht.
+
+⚠️ **Die Bedingungsspalte ist der Punkt, nicht die Dekoration.** Solange `repoMainJs`
+existiert, entscheidet der sha1-Vergleich, und die Ausgänge sind **nur** `deployt`/`fremd` —
+`store-installiert` und `ungeklaert` sind dann unerreichbar. Wer bloß ein Suffix anhängt und
+„Store-Installation" erwartet, bekommt `fremd`, prüft zwei Ausgänge und **glaubt, er habe
+vier geprüft**. Deshalb muss für die beiden der Repo-Build weichen (realistischer Fall:
+frischer Klon ohne `npm run build`).
+
+**Der Beweis für die Lesson ist ein anderer als diese vier.** Sie belegen, dass
+`requireEigenerBuild` wirkt — nicht, dass der **Umzug des Prüfgegenstands** wirkt. Dafür
+ein Lauf gegen ein fremdes Fenster:
+
+```
+alter Code hätte geprüft:  60_StagingVaults/llm-lab/…      → alle 3 Dateien identisch → GRÜN
+neuer Code prüft:          60_StagingVaults/koda-agent/…   → Abbruch
+```
+
+Gemessen mit `--vault koda-agent`: `Im Vault liegt keine main.js: /…/koda-agent/.obsidian/plugins/llm-lab/main.js`.
+Der Lauf bricht vor jedem Eingriff ab, ein fremdes Fenster nimmt also keinen Schaden.
 
 Die Gegenprobe baute gleichzeitig ein: `vault_sink.list` liefert `bytes: 0` (der stille
 `stat()`-Fehlerfall) → Punkt 11 rot; Lucide-Icon `circle-dott` → Punkt 3 rot; `shouldLog`

@@ -79,7 +79,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
 import { Cdp, attachTo, pollUntil, releaseAlwaysOnTop, requireVisible } from "../../tools/obsidian-cdp/cdp.js";
-import { buildVault, stagingVaultDir } from "../../tools/obsidian-cdp/vault.js";
+import { buildVault, requireEigenerBuild, stagingVaultDir } from "../../tools/obsidian-cdp/vault.js";
 
 const PLUGIN_ID = "llm-lab";
 const REPO_NAME = "llm-lab";
@@ -93,6 +93,13 @@ const EXCLUDED_FEATURE = "settings-probe";
 
 interface Check { name: string; passed: boolean; detail: string }
 const results: Check[] = [];
+
+/**
+ * Die `ungeklaert`-Warnung des Herkunfts-Guards. Sie gehoert in die ABSCHLUSSZEILE, nicht nur
+ * nach oben ins Protokoll: wer eine Runde faehrt, liest die letzte Zeile — und ein Lauf, dessen
+ * Herkunft ungeprueft blieb, darf nicht aussehen wie einer, der belegt ist.
+ */
+let herkunftsWarnung: string | null = null;
 
 function record(name: string, passed: boolean, detail: string): void {
   results.push({ name, passed, detail });
@@ -146,24 +153,6 @@ async function main(): Promise<void> {
     return;
   }
 
-  // Deploy-Abgleich VOR dem Verbinden: ein Lauf gegen den vorigen Stand meldet Erfolg und
-  // misst die falsche Fassung — der teuerste stille Fehlschlag dieses Werkzeugs (Lesson
-  // vault-rag 2026-08-21, fing beim ersten Einsatz sofort den realen Fall). Er ersetzt
-  // `npm run build` nicht, nur das Vergessen des Kopierens (Lesson json_viewer).
-  const hash = (p: string): string | null => {
-    try { return createHash("sha256").update(readFileSync(p)).digest("hex"); } catch { return null; }
-  };
-  const abweichend = ["main.js", "manifest.json", "styles.css"].filter(
-    (f) => hash(join(repoRoot, f)) !== hash(join(vaultDir, ".obsidian/plugins", PLUGIN_ID, f)),
-  );
-  if (abweichend.length && !flag("--ignore-deploy")) {
-    throw new Error(
-      `Der Vault traegt einen anderen Stand als der Arbeitsbaum (${abweichend.join(", ")}).\n`
-      + `  npm run build && OBSIDIAN_PLUGIN_DIR="${vaultDir}/.obsidian/plugins/${PLUGIN_ID}" npm run deploy\n`
-      + "Danach das Plugin im laufenden Obsidian aus- und wieder einschalten. (--ignore-deploy uebergeht das.)",
-    );
-  }
-
   const cdp = await attachTo("workspace", port, vaultName);
   if (!cdp) {
     throw new Error(
@@ -178,6 +167,55 @@ async function main(): Promise<void> {
   // Ein Fenster im Hintergrund liefert einen leeren DOM, waehrend die App-API korrekt
   // antwortet — man debuggt dann ein Phantom.
   await requireVisible(cdp);
+
+  // Der Pfad kommt aus der LAUFENDEN Instanz, nicht aus `stagingVaultDir(REPO_NAME)`.
+  // Das ist der ganze Punkt und es ist load-bearing: `--vault` dockt an ein BELIEBIGES
+  // Fenster an, `vaultDir` ist dagegen aus der Konvention abgeleitet. Bis zum 2026-09-02
+  // mass der Abgleich hier deshalb im Zweifel eine Datei, die mit dem Lauf nichts zu tun
+  // hatte — ein Lauf gegen `10_Pallas` (Store-Build) waere gruen durchgelaufen, waehrend
+  // der Staging-Vault brav den Repo-Stand trug. Geprueft wird, was gemessen wird
+  // (Lesson 2026-09-02, kuro-gamification).
+  const vaultInfo = await cdp.evaluate<{ name: string; basePath: string; configDir: string }>(`
+    return {
+      name: app.vault.getName(),
+      basePath: app.vault.adapter.basePath,
+      configDir: app.vault.configDir,
+    };
+  `);
+  const deployDir = join(vaultInfo.basePath, vaultInfo.configDir, "plugins", PLUGIN_ID);
+  console.log(`Vault: ${vaultInfo.name} (${deployDir})\n`);
+
+  // Deploy-Abgleich: ein Lauf gegen den vorigen Stand meldet Erfolg und misst die falsche
+  // Fassung — der teuerste stille Fehlschlag dieses Werkzeugs (Lesson vault-rag 2026-08-21,
+  // fing beim ersten Einsatz sofort den realen Fall). Er ersetzt `npm run build` nicht, nur
+  // das Vergessen des Kopierens (Lesson json_viewer). Er deckt drei Dateien statt einer und
+  // steht deshalb NEBEN `requireEigenerBuild`, nicht statt seiner: `manifest.json` und
+  // `styles.css` sieht der Herkunfts-Guard nicht.
+  const hash = (p: string): string | null => {
+    try { return createHash("sha256").update(readFileSync(p)).digest("hex"); } catch { return null; }
+  };
+  const abweichend = ["main.js", "manifest.json", "styles.css"].filter(
+    (f) => hash(join(repoRoot, f)) !== hash(join(deployDir, f)),
+  );
+  if (abweichend.length && !flag("--ignore-deploy")) {
+    throw new Error(
+      `Der Vault traegt einen anderen Stand als der Arbeitsbaum (${abweichend.join(", ")}).\n`
+      + `  npm run build && OBSIDIAN_PLUGIN_DIR="${deployDir}" npm run deploy\n`
+      + "Danach das Plugin im laufenden Obsidian aus- und wieder einschalten. (--ignore-deploy uebergeht das.)",
+    );
+  }
+
+  // Zweite Frage, die der Abgleich darueber NICHT beantwortet, wenn `--ignore-deploy`
+  // gesetzt ist: ist der Build im Vault ueberhaupt EIN EIGENER? Store-Build und Repo-Build
+  // tragen dieselbe `manifest.version`, daran ist sie strukturell blind. Am 2026-08-30
+  // standen dachweit 69 von 150 gruenen Pruefpunkten auf einem Build, der nicht belegt der
+  // Repo-Stand war. `ungeklaert` bricht nicht ab, sondern warnt — die Meldung landet in der
+  // Abschlusszeile, weil ein Lauf ohne belegte Herkunft nicht aussehen darf wie einer mit.
+  requireEigenerBuild(
+    join(deployDir, "main.js"),
+    join(repoRoot, "main.js"),
+    (meldung) => { herkunftsWarnung = meldung; console.warn(meldung); },
+  );
 
   const heute = utcDay();
   const gestern = utcDay(-1);
@@ -790,6 +828,9 @@ async function main(): Promise<void> {
 
   const failed = results.filter((r) => !r.passed);
   console.log(`\n${results.length - failed.length}/${results.length} Pruefpunkte gruen`);
+  if (herkunftsWarnung !== null) {
+    console.log("⚠️  Herkunft des gemessenen Builds ungeprueft — s. Warnung oben.");
+  }
   if (failed.length) {
     console.log("\nOffen:");
     for (const f of failed) console.log(`  ✗ ${f.name} — ${f.detail}`);
