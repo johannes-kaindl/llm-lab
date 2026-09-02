@@ -6,6 +6,16 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Changed
+- **GUI-Smoke: der Prüfgegenstand kommt aus dem Lauf, nicht aus der Konvention.** Der
+  Deploy-Abgleich las `stagingVaultDir("llm-lab")`, während der Treiber per `--vault` an ein
+  beliebiges Fenster andockt — ein Lauf gegen einen fremden Vault hätte die Datei im
+  Staging-Vault geprüft und wäre grün durchgelaufen. Er steht jetzt hinter `attachTo` und
+  nimmt `app.vault.adapter.basePath` + `app.vault.configDir` aus der laufenden Instanz. Dazu
+  `requireEigenerBuild` (zentrale Brücke) gegen den Fall, für den `manifest.version` blind
+  ist: Store- und Repo-Build tragen dieselbe Nummer. Gegenprobe über alle vier Ausgänge und
+  einen Lauf gegen ein fremdes Fenster — s. `docs/SMOKE.md`.
+
 ## [0.4.0] — 2026-08-30
 
 ### Added

@@ -343,6 +343,28 @@ npm run version-bump / preflight / release   # delegieren ans zentrale ../tools/
   `docs/SMOKE.md`; die CDP-Brücke kommt zentral aus `../tools/obsidian-cdp/` und wird
   importiert, nie vendored. Wer `vault_sink.ts`, `rotation.ts`, `main.ts::renderStatus` oder
   die Zeilen-Reihenfolge im Settings-Tab anfasst, fährt ihn — dort misst keine vitest-Suite mit.
+
+  **Der Treiber prüft seit 2026-09-02 zuerst, ob er überhaupt den eigenen Stand misst** — und
+  zwar am Pfad, den die **laufende Instanz** nennt (`app.vault.adapter.basePath` +
+  `app.vault.configDir`), nicht an `stagingVaultDir("llm-lab")`. Der Unterschied ist
+  load-bearing: `--vault` dockt an ein beliebiges Fenster an, ein aus der Konvention
+  abgeleiteter Pfad prüft dann eine Datei, die mit dem Lauf nichts zu tun hat. Deshalb steht
+  der Abgleich **hinter** `attachTo` — davor ist gar nicht bekannt, wogegen gemessen wird.
+  Zwei Prüfungen nebeneinander, nicht hintereinander: der 3-Datei-Hash (`main.js`,
+  `manifest.json`, `styles.css`) fängt das vergessene Kopieren, `requireEigenerBuild` den
+  fremden Build — `manifest.version` ist dafür strukturell blind, weil Store- und Repo-Build
+  dieselbe Nummer tragen. Gemessen am selben Tag: der Staging-Vault trug `manifest.json`
+  0.3.0 bei byte-identischer `main.js` 0.4.0, ein reiner `main.js`-Vergleich hätte das
+  durchgewinkt.
+
+  ⚠️ **Wer die Gegenprobe dazu wiederholt, muss die Erreichbarkeit der Ausgänge kennen:**
+  solange der Repo-Build existiert, entscheidet der sha1-Vergleich, und `buildHerkunft`
+  liefert **nur** `deployt`/`fremd`. `store-installiert` und `ungeklaert` sind dann
+  unerreichbar — wer bloß ein `nosourcemap`-Suffix anhängt und „Store-Installation" erwartet,
+  bekommt `fremd`, prüft zwei Ausgänge und hält es für vier. Für die beiden muss der
+  Repo-Build weichen. Und keiner der vier belegt die eigentliche Zusage: dafür braucht es
+  einen Lauf gegen ein **fremdes** Fenster (`--vault <anderer>`), der abbricht, wo der alte
+  Code grün gewesen wäre. Beides steht ausgeführt in `docs/SMOKE.md`.
 - **i18n:** nutzersichtbare Strings via `t()` (`src/vendor/kit/i18n.ts`), EN kanonisch + DE.
   **Nie ein `t()`-Aufruf auf Modul-Ebene oder in einem Klassenfeld** — `setLang()` läuft in
   `onload`, nach der Modul-Auswertung; ein `t()` davor friert die Sprache still auf den
