@@ -6,14 +6,25 @@ Workspace-weite Standards (comply-or-explain): siehe [`../_docs/CONVENTIONS.md`]
 
 **Profil:** `ts-node` · `obsidian-plugin`.
 
-**Stand 2026-08-30: Slice 1 gebaut, 0.1.0 bis 0.3.0 released, beide Forges öffentlich, Store-
+**Stand 2026-09-02: Slice 1 gebaut, 0.1.0 bis 0.4.0 released, beide Forges öffentlich, Store-
 Einreichung steht aus (Developer Dashboard, Maintainer-Login). Die Vertragserweiterung
-(`apiVersion` 2 — `secrets`/`contextPaths`, Ordner-Filter) ist mit 0.3.0 (2026-08-24) released.
-Die zweite Vertragserweiterung (`apiVersion` 3 — `promptTemplate`/`promptTemplateHash`, eine
-Prompt-*Fassung* statt eines einzelnen Aufrufs) ist gebaut und liegt unter `[Unreleased]`, noch
-nicht released.** Für neue Vorhaben gilt: erst
-Kit-first-Sondierung (`../AGENTS.md` + `../REGISTRY.md`), dann `superpowers:brainstorming` →
-Spec → Plan → TDD.
+(`apiVersion` 2 — `secrets`/`contextPaths`, Ordner-Filter) ist mit 0.3.0 (2026-08-24) released,
+die zweite (`apiVersion` 3 — `promptTemplate`/`promptTemplateHash`, eine Prompt-*Fassung* statt
+eines einzelnen Aufrufs) mit **0.4.0 (2026-08-30)**, zusammen mit vault-rag 0.29.0.** Für neue
+Vorhaben gilt: erst Kit-first-Sondierung (`../AGENTS.md` + `../REGISTRY.md`), dann
+`superpowers:brainstorming` → Spec → Plan → TDD.
+
+⚠️ **Das Plugin kann nicht selbst merken, dass es niemand benutzt — und alle Prüfungen bleiben
+dabei grün.** Am 2026-09-02 gemessen: in `10_Pallas` war seit dem ersten Release **kein einziger
+echter Record** entstanden (`.obsidian/plugins/llm-lab/` trug nur die drei Deploy-Dateien, weder
+`traces/` noch `data.json`), obwohl llm-lab 0.4.0 und vault-retrieval 0.29.0 installiert **und**
+aktiviert waren und die Verdrahtung im Build steckte. Kein Defekt: `vault-rag` ist der einzige
+Konsument, und sein Chat wurde nicht benutzt. **Gate und GUI-Smoke können das strukturell nicht
+melden — der Smoke erzeugt seine Prüf-Records selbst.** Wer „38/38 grün" liest, weiß damit, dass
+der Schreibweg funktioniert, *nicht* dass etwas aufgezeichnet wird. Die Frage „fließen Daten?"
+beantwortet nur ein Blick in den Plugin-Ordner des Arbeitsvaults. Folge für jede Slice, die auf
+Daten aufbaut: **erst den Konsumenten anschließen, dann die Auswertung bauen** — sonst entsteht
+eine Oberfläche für eine leere Datei.
 
 ## Project character
 
