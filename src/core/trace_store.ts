@@ -112,8 +112,14 @@ export class TraceStore {
 
   /** Entfernt genau eine Zeile aus der Tagesdatei. Laeuft ueber dieselbe Kette wie
    *  `append` — sonst geht ein gleichzeitiger Konsumenten-Aufruf verloren. */
-  async removeRecord(day: string, id: string): Promise<void> {
-    return this.serialize(async () => {
+  /** Liefert `true` nur bei tatsaechlichem Erfolg — fail-safe bleibt unangetastet (der
+   *  Aufruf wirft weiterhin nie), aber ein Aufrufer wie `RatePanelHost.remove` bekommt
+   *  jetzt einen echten Rueckkanal statt eines Erfolgs, der nur behauptet wird (Befund I4).
+   *  `writeNow`/`write` bleiben bewusst bei `void` — ihre fire-and-forget-Zusage ist an
+   *  anderer Stelle load-bearing (s. Kommentar dort) und wird hier nicht angetastet. */
+  async removeRecord(day: string, id: string): Promise<boolean> {
+    let ok = true;
+    await this.serialize(async () => {
       try {
         const pfad = `${this.dir()}/${day}.jsonl`;
         const roh = await this.sink.read(pfad);
@@ -134,7 +140,9 @@ export class TraceStore {
         await this.sink.write(pfad, behalten.length > 0 ? behalten.join("\n") + "\n" : "");
       } catch (e) {
         console.warn("LLM Lab: Record konnte nicht entfernt werden", e);
+        ok = false;
       }
     });
+    return ok;
   }
 }

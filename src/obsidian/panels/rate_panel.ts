@@ -1,4 +1,4 @@
-import { setIcon, type App } from "obsidian";
+import { Notice, setIcon, type App } from "obsidian";
 import { t } from "../../vendor/kit/i18n";
 import { confirmAction } from "../../vendor/kit-obsidian/confirm";
 import type { HubPanel } from "../../vendor/kit-obsidian/hub";
@@ -12,10 +12,16 @@ export interface RatePanelHost {
   app: App;
   reader(): TraceReader;
   ratedIds(): Promise<Set<string>>;
-  /** Speichert eine Bewertung. Der Host baut den Redaktor, weil er die Einstellungen kennt. */
+  /** Speichert eine Bewertung. Der Host baut den Redaktor, weil er die Einstellungen kennt.
+   *  Wirft bei einem Schreibfehler (der zugrundeliegende `dataset.add` faengt nichts ab) —
+   *  das Panel faengt den Fehler und zeigt eine Notice, statt ihn als unhandled rejection
+   *  verschwinden zu lassen (Befund I4). */
   rate(trace: TraceRecord, urteil: RateInput): Promise<void>;
-  /** Entfernt den Record physisch aus der Trace-Datei. */
-  remove(trace: TraceRecord): Promise<void>;
+  /** Entfernt den Record physisch aus der Trace-Datei. Liefert `true` nur bei tatsaechlichem
+   *  Erfolg — der zugrundeliegende `TraceStore.removeRecord` faengt seinen eigenen Fehler
+   *  bewusst ab (fail-safe) und wirft nie; ohne diesen Rueckkanal waere ein gescheitertes
+   *  Loeschen fuer das Panel nicht von einem erfolgreichen zu unterscheiden (Befund I4). */
+  remove(trace: TraceRecord): Promise<boolean>;
 }
 
 export class RatePanel implements HubPanel<"rate"> {
@@ -179,21 +185,37 @@ export class RatePanel implements HubPanel<"rate"> {
 
   private async bewerte(r: TraceRecord, verdict: "up" | "down"): Promise<void> {
     if (r.error !== undefined) return;
-    await this.host.rate(r, { verdict, tags: [] });
+    const vorherigeSichtbar = this.sichtbar;
+    const vorherigerIndex = vorherigeSichtbar.indexOf(r);
+    try {
+      await this.host.rate(r, { verdict, tags: [] });
+    } catch (e) {
+      console.warn("LLM Lab: Bewertung konnte nicht gespeichert werden", e);
+      new Notice(t("rate.rateFailed"));
+      return;
+    }
     this.ratedIds.add(r.id);
-    this.weiter();
+    this.weiter(vorherigeSichtbar, vorherigerIndex);
   }
 
   /** Vertiefung: Urteil MIT Tags, Notiz und Korrektur. Ohne Urteil kein Dialog —
    *  die Vertiefung ergaenzt eine Bewertung, sie ersetzt sie nicht. */
   private vertiefe(r: TraceRecord, verdict: "up" | "down"): void {
     if (r.error !== undefined) return;
+    const vorherigeSichtbar = this.sichtbar;
+    const vorherigerIndex = vorherigeSichtbar.indexOf(r);
     new RateDetailsModal(this.host.app, verdict, (urteil) => {
       if (!urteil) return;
       void (async () => {
-        await this.host.rate(r, urteil);
+        try {
+          await this.host.rate(r, urteil);
+        } catch (e) {
+          console.warn("LLM Lab: Bewertung konnte nicht gespeichert werden", e);
+          new Notice(t("rate.rateFailed"));
+          return;
+        }
         this.ratedIds.add(r.id);
-        this.weiter();
+        this.weiter(vorherigeSichtbar, vorherigerIndex);
       })();
     }).open();
   }
@@ -206,14 +228,28 @@ export class RatePanel implements HubPanel<"rate"> {
       warning: true,   // Default ist ohnehin true; hier explizit, weil destruktiv
     });
     if (!ok) return;
-    await this.host.remove(r);
+    const entfernt = await this.host.remove(r);
+    if (!entfernt) {
+      new Notice(t("rate.deleteFailed"));
+      return;
+    }
     this.rows = this.rows.filter((x) => x.id !== r.id);
     this.render();
   }
 
-  /** Nach einem Urteil zum naechsten Record — das ist der Durchratter-Rhythmus. */
-  private weiter(): void {
-    this.auswahl = Math.min(this.auswahl + 1, Math.max(0, this.sichtbar.length - 1));
+  /** Nach einem Urteil zum naechsten Record — das ist der Durchratter-Rhythmus.
+   *
+   *  Nimmt die sichtbare Liste UND die Auswahl-Position von VOR der Bewertung entgegen
+   *  (Befund I1): `this.sichtbar`/`this.auswahl` wuerden nach `render()` schon die neue,
+   *  um den eben bewerteten Record verkuerzte Liste zeigen — eine blinde `+1` darauf
+   *  ueberspringt bei aktivem "nur unbewertete"-Filter immer den naechsten Record. Der
+   *  korrekte naechste Record ist der, der in der ALTEN Reihenfolge direkt auf den eben
+   *  bewerteten folgte — dessen id wird in der NEUEN (gefilterten) Liste wiedergefunden. */
+  private weiter(vorherigeSichtbar: TraceRecord[], vorherigerIndex: number): void {
+    const naechsteId = vorherigeSichtbar[vorherigerIndex + 1]?.id;
+    const neueSichtbar = applyFilter(this.rows, this.filter, this.ratedIds);
+    const idx = naechsteId ? neueSichtbar.findIndex((x) => x.id === naechsteId) : -1;
+    this.auswahl = idx >= 0 ? idx : Math.min(this.auswahl, Math.max(0, neueSichtbar.length - 1));
     this.render();
   }
 

@@ -252,4 +252,20 @@ describe("TraceStore — Serialisierung", () => {
     expect(zeilen).toContain("neu");
     expect(zeilen).not.toContain("alt");
   });
+
+  // Befund I4: removeRecord() muss seinen Erfolg ueber den Rueckgabewert melden, nicht
+  // nur ueber ein console.warn — sonst kann ein Aufrufer (RatePanelHost.remove) ein
+  // gescheitertes Loeschen nicht von einem erfolgreichen unterscheiden.
+  it("meldet Erfolg mit true", async () => {
+    const { sink } = fakeSink({ "lab/traces/2026-09-03.jsonl": JSON.stringify({ id: "alt" }) + "\n" });
+    const store = new TraceStore(sink, "lab", limits, () => "2026-09-03");
+    await expect(store.removeRecord("2026-09-03", "alt")).resolves.toBe(true);
+  });
+
+  it("meldet einen Fehler mit false, bleibt aber fail-safe (wirft nicht)", async () => {
+    const { sink } = fakeSink({ "lab/traces/2026-09-03.jsonl": JSON.stringify({ id: "alt" }) + "\n" });
+    sink.write = async () => { throw new Error("Platte voll"); };
+    const store = new TraceStore(sink, "lab", limits, () => "2026-09-03");
+    await expect(store.removeRecord("2026-09-03", "alt")).resolves.toBe(false);
+  });
 });
