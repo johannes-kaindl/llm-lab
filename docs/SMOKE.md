@@ -154,9 +154,13 @@ anderen Schicht überdauert.
 
 Sieben neue Punkte für die Bewertungs-Ansicht — Sektionsnummerierung folgt den Kommentaren in
 `scripts/gui-smoke.ts` selbst (§16–22), nicht dem älteren Nummernschema der Tabelle oben (das
-schon vor dieser Task von der tatsächlichen Reihenfolge im Code abwich — 41 `record()`-Aufrufe
-vor dieser Task, nicht 32/38 wie die Kopfzeile bzw. die Durchläufe-Tabelle zuletzt auswiesen;
-nicht in dieser Task nachgezogen, s. Meldung an den Master).
+schon vor dieser Task von der tatsächlichen Reihenfolge im Code abwich). **Präzisierung, damit
+das nicht als Widerspruch zur alten 38/38-Bilanz gelesen wird:** vor dieser Task standen 41
+`record()`-AUFRUFSTELLEN im Quelltext, davon 3 in zueinander exklusiven Verzweigungen (if/else
+bzw. eine Dreier-Verzweigung) — tatsächlich AUSGEFÜHRT wurden davon nur 38. Die alte
+38/38-Angabe (Kopfzeile bzw. Durchläufe-Tabelle) war also korrekt; gedriftet ist nur die
+**Sektionsnummerierung** in den Code-Kommentaren (`// --- N. ...`), nicht die Prüfpunkt-Bilanz.
+Nicht in dieser Task nachgezogen, s. Meldung an den Master.
 
 | # | Prüft |
 |---|---|
@@ -187,7 +191,7 @@ nicht in dieser Task nachgezogen, s. Meldung an den Master).
 
 | Datum | Obsidian | Ergebnis | Gegenprobe |
 |---|---|---|---|
-| 2026-09-16 | 1.14.2 (Vault `llm-lab`, Oberfläche de) | **45/45 grün** — Task 13, Slice A „Bewerten" (Punkte 16–22 neu). Kopfzeile weist den gemessenen Pfad aus, keine Herkunftswarnung — Ausgang `deployt`. Kein „danach anders grün": drei aufeinanderfolgende Läufe, jeder mit einem neuen, konkreten Fund (s. Abschnitt oben) — Baseline-Lauf brach mit einer Exception ab (fehlendes `return`), zweiter Lauf 44/45 (Punkt 22 Timeout wegen `mod-destructive`), dritter Lauf 45/45. | Baseline-Lauf: Abbruch nach Punkt 18. Zweiter Lauf nach dem `return`-Fix: 44/45. Dritter Lauf nach dem Selektor-Fix: 45/45. |
+| 2026-09-16 | 1.14.2 (Vault `llm-lab`, Oberfläche de) | **45/45 grün** — Task 13, Slice A „Bewerten" (Punkte 16–22 neu). Kopfzeile weist den gemessenen Pfad aus, keine Herkunftswarnung — Ausgang `deployt`. Kein „danach anders grün": drei aufeinanderfolgende Läufe, jeder mit einem neuen, konkreten Fund (s. Abschnitt oben) — Baseline-Lauf brach mit einer Exception ab (fehlendes `return`), zweiter Lauf 44/45 (Punkt 22 Timeout wegen `mod-destructive`), dritter Lauf 45/45. Wie im Abschnitt oben: 48 `record()`-Aufrufstellen im Quelltext, davon 3 in zueinander exklusiven Verzweigungen — 45 tatsächlich ausgeführt, alle grün. Screenshot-Beleg für die Bewertungs-Ansicht (Empty-State, Panel hell, Modal, Panel dunkel): `docs/images/welle3/`. | Baseline-Lauf: Abbruch nach Punkt 18. Zweiter Lauf nach dem `return`-Fix: 44/45. Dritter Lauf nach dem Selektor-Fix: 45/45. |
 | 2026-09-02 | 1.13.7 (Vault `llm-lab`, Oberfläche de) | **38/38 grün** — Einbau des Herkunfts-Guards (Lesson 2026-09-02, kuro-gamification). Kopfzeile weist den gemessenen Pfad aus: `Vault: llm-lab (/…/60_StagingVaults/llm-lab/.obsidian/plugins/llm-lab)`. Keine Herkunftswarnung — Ausgang `deployt`, per sha1 belegt. | **Vollständig, alle vier Ausgänge einzeln — s. Tabelle unten.** Dazu der Beweis für den Umzug selbst: Lauf gegen ein **fremdes** Fenster (`--vault koda-agent`) bricht ab, während im Staging-Vault alle drei Dateien byte-identisch lagen — der alte Code wäre grün durchgelaufen |
 | 2026-08-30 | 1.13.7 (Vault `llm-lab`, Oberfläche en) | **38/38 grün** — Task 8 (`promptTemplateHash`, `apiVersion` 2 → 3), Branch `feat/prompttemplate-hash` `e50f0ba` | Vertrags-Prüfpunkt meldet `apiVersion 3` (nicht 2) — der Treiber lädt das Plugin zu Beginn frisch, der Fund wäre also ein veralteter Deploy, nicht Code |
 | 2026-08-24 | 1.13.7 (Vault `llm-lab`, Oberfläche de) | **38/38 grün** — Lauf vor dem 0.3.0-Release, nach der Wortlaut-Präzisierung der Ordner-Filter-Grenze (Settings-Text + beide READMEs) | — Text-, keine Struktur-Änderung; die drei `render`-Hatches und beide Renderer-Pfade sind im selben Lauf namentlich nachgewiesen |

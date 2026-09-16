@@ -138,8 +138,12 @@ enable the plugin under **Settings → Community plugins**.
 
 ## Usage
 
-There is nothing to start and nothing to click. Once a sibling plugin calls the API, recording
-happens on its own — and the only three things you ever do with LLM Lab are these:
+Recording itself needs nothing to start and nothing to click. Once a sibling plugin calls the
+API, recording happens on its own. To review and rate what was recorded, open the **LLM Lab**
+tab (ribbon icon, or the "Open LLM Lab" command) — it lists calls sorted newest first, shows the
+full prompt/response for the selected one, and is keyboard-driven: `j`/`k` move the selection,
+`g`/`b` rate the current call good/poor, `Enter` opens tags/note/correction, `Delete` removes the
+recording. Beyond that view, the only three things you ever do with LLM Lab are these:
 
 - **Check the status bar.** It shows a dot icon and *"Lab: recording"*, or a pause icon and
   *"Lab: paused"*. Icon **and** text, never colour alone.

@@ -207,13 +207,19 @@ jedem Feld neu bei `_1` anfangen; ein aus solchen Daten trainiertes Modell lernt
 einem Platzhalter beliebige neue Daten zu erfinden, statt die Aufgabenstruktur zu lernen. Das
 ist die eigentliche Referenzleistung dieses Moduls (`src/core/redact_pii.ts`) — s. REGISTRY.
 
-## Kein UI über die Einstellungen hinaus
+## Kein UI über die Einstellungen hinaus — das war eine Slice-1-Aussage
 
-**Slice 1 verzichtet bewusst auf jede Oberfläche außer dem Settings-Tab.** Kein
-Bewertungs-Knopf, kein Datensatz-Browser, kein Export-Dialog — alle drei setzen eine
-Datensatz-Schicht voraus, die in dieser Slice nicht existiert (s. Datenmodell oben). Der
-Status wird ausschließlich über die Statusleiste (Icon + Text, nie Farbe allein — WCAG 1.4.1)
-und einen Command (`toggle-pause`) sichtbar. Wer eine UI für Slice 2 baut, prüft zuerst
+**Slice 1 verzichtete bewusst auf jede Oberfläche außer dem Settings-Tab.** Kein
+Bewertungs-Knopf, kein Datensatz-Browser, kein Export-Dialog — alle drei setzten eine
+Datensatz-Schicht voraus, die damals nicht existierte (s. Datenmodell oben). Der Abschnitt
+bleibt stehen, weil die Begründung für diese Slice-1-Entscheidung weiter Erklärwert hat.
+
+**Seit Slice A ("Bewerten") gilt das nicht mehr — bewusst, nicht als Rückfall in eine
+UI-Wildwuchs-Phase.** Es gibt jetzt eine eigene Bewertungs-Ansicht (`LabView`, Hub im
+Hauptbereich, s. Modul-Layout unten), erreichbar über ein Ribbon-Icon und den Command
+`open-view`, dazu zwei weitere Commands für den Durchratter-Rhythmus (`rate-up`, `rate-down`)
+und einen zum Löschen (`delete-record`). Die Statusleiste und `toggle-pause` bleiben wie
+beschrieben; wer eine UI für eine künftige Slice baut, prüft weiter zuerst
 `../UI-STANDARD.md`.
 
 ## Bekannte Lücken in Slice 1 — beide geschlossen (2026-08-23)
@@ -285,8 +291,26 @@ core/
                     shouldLog(input: LogDecisionInput, paused, settings) — bündelt Feature-
                     UND Ordner-Ausschluss kurzschließend: enabled → paused → feature → Pfade.
   trace_store.ts    TraceStore — TraceSink-Port injiziert, write() fire-and-forget,
-                    writeNow() awaitbar (nur für Tests), rotate() nach jedem Schreiben.
+                    writeNow() awaitbar (nur für Tests), rotate() nach jedem Schreiben,
+                    removeRecord() liefert seit Befund I4 `Promise<boolean>` (Erfolg/Misserfolg)
+                    statt `Promise<void>` — bleibt fail-safe (wirft nie), meldet den Ausgang
+                    aber ueber den Rueckgabewert statt nur per console.warn.
   i18n/strings.ts   EN/DE-Wörterbuch, importiert für den Registrierungs-Seiteneffekt.
+  dataset.ts        RateInput/Verdict/DatasetEntry — was der Mensch beim Bewerten beisteuert
+                    (Urteil, Tags, Notiz, Korrektur als SFT-Material) und die Zeilenform von
+                    dataset.jsonl; buildDatasetEntry() baut aus TraceRecord + RateInput einen
+                    redigierten Eintrag. parseJsonl() (geteilt mit trace_reader.ts) lebt hier.
+  dataset_store.ts  DatasetStore — die bleibende Schicht (dataset.jsonl, NEBEN traces/, damit
+                    `planRotation` sie strukturell nicht wegraeumen kann). add() haengt
+                    an (kein try/catch — ein Schreibfehler wirft bewusst durch, s. Befund I4),
+                    list() dedupliziert je trace.id ueber `ratedAt` (juengstes Urteil gewinnt,
+                    nicht die Dateireihenfolge), ratedIds() ist die Grundlage des
+                    "nur unbewertete"-Filters.
+  trace_reader.ts   TraceReader/applyFilter/TraceFilter — liest alle Tages-Trace-Dateien ein
+                    (zaehlt kaputte Zeilen durch, statt sie zu schlucken) und filtert/sortiert
+                    rein (neueste zuerst, Fehler-Records nur im eigenen Filter, LISTEN_GRENZE
+                    als harte Obergrenze fuer die DOM-Liste). `TraceReader.dayOf()` liefert den
+                    Dateinamen-Tag, den `removeRecord` braucht.
 obsidian/
   settings_tab.ts   LabSettingTab — ZWEIGLEISIG (seit 0.2.0): getSettingDefinitions() ist die
                     eine Struktur, get/setControlValue der Host, display() zeichnet dieselbe
@@ -296,9 +320,30 @@ obsidian/
                     s. unten.
   vault_sink.ts     vaultSink(adapter) — dünne Anpassung von Obsidians DataAdapter an
                     TraceSink; legt den Ordner beim ersten Schreiben an.
+  lab_view.ts       LabView — die Bewertungs-Ansicht (VIEW_TYPE_LAB), registriert im
+                    Hauptbereich, nicht der Seitenleiste (UI-STANDARD-Design, von Johannes
+                    bestaetigt: bewerten heisst System-Prompt und Antwort vergleichen, eine
+                    300px-Sidebar macht daraus eine Lese-Roehre). Duenne ItemView-Huelle um
+                    `buildHubInto` (Kit-Hub-Muster) mit den Panels als LabTabId ("rate" ·
+                    "stats" · "export" — nur "rate" ist gebaut).
+  panels/
+    rate_panel.ts       RatePanel — das Bewerten-Panel (HubPanel<"rate">). Filter-Leiste
+                        (unbewertet/Fehler/Plugin/Modell), Zeilenliste, Detailansicht,
+                        Aktionsleiste (gut/schlecht/vertiefen/löschen), Tastaturbedienung
+                        j/k/g/b/Enter/Delete. DOM ist reine Funktion des gehaltenen Zustands
+                        (UI-STANDARD §4) — nie aus dem DOM zurückgelesen. `weiter()` wählt
+                        nach einem Urteil den nächsten Record über dessen id in der neu
+                        gefilterten Liste, nicht über eine blinde Index-Verschiebung (Befund
+                        I1); `bewerte()`/`vertiefe()`/`loesche()` fangen einen scheiternden
+                        `host.rate()`/`host.remove()` und zeigen eine `Notice`, statt still
+                        zu bleiben oder eine unhandled rejection zu erzeugen (Befund I4).
+    rate_details_modal.ts  RateDetailsModal — Vertiefung zu einem Urteil (Tags, Notiz,
+                        Korrektur). Löst mit `null` auf, wenn abgebrochen wird — ein
+                        abgebrochener Dialog darf keine halbe Bewertung schreiben.
 plugin_api.ts       createLlmLabApi — der öffentliche Vertrag (s. oben).
 main.ts             Plugin-Entry: Sprache setzen, Settings laden, TraceStore/API verdrahten,
-                    Statusleiste, toggle-pause-Command, Settings-Tab registrieren.
+                    Statusleiste, toggle-pause-Command, Settings-Tab registrieren, Ribbon-Icon
+                    + View + vier Commands fuer die Bewertungs-Ansicht verdrahten.
 vendor/kit/i18n.ts          Verbatim-Snapshot aus obsidian-kit — nie von Hand editieren.
 vendor/kit-obsidian/
   settings_walker.ts        Übernommen aus obsidian-kit@0.27.0 (Herkunftsstempel in Zeile 1),
@@ -306,6 +351,17 @@ vendor/kit-obsidian/
                             ist entfernt (zieht FolderSuggest nach; der Ordner-Ausschluss ist
                             eine `textarea`, kein `folder`-Control).
                             Nie von Hand editieren — wächst der Bedarf, neu aus dem Kit ziehen.
+  hub.ts                    Übernommen aus obsidian-kit@0.37.1 (Herkunftsstempel in Zeile 1):
+                            die Hub-Tab-Leiste (UI-STANDARD §8, verbindlich) — Tabs + ein
+                            Content-Bereich, in den jedes Panel genau einmal gemountet wird
+                            ("mount-once"), Tab-Wechsel blendet nur um, damit Panel-Zustand
+                            (Filter, Auswahl, Scrollposition) ihn überlebt. Nie von Hand
+                            editieren.
+  confirm.ts                Übernommen aus obsidian-kit@0.37.1 (Herkunftsstempel in Zeile 1):
+                            confirmAction() — Bestätigungs-Modal hinter einer Promise-Fassade
+                            (REGISTRY „Bestätigungs-Modal"). Trägt `applyDestructive()` für
+                            einen versionsunabhängigen destruktiven Button. Nie von Hand
+                            editieren.
 ```
 
 **Zwei Regeln, die beim Anfassen des Settings-Tabs gelten** (beide gemessen, nicht vermutet):
@@ -426,12 +482,15 @@ npm run version-bump / preflight / release   # delegieren ans zentrale ../tools/
   Job heraus auf (Selbst-Deadlock), sondern `rotateNow()`.
 - **`data.json`** ist die von Obsidian persistierte Plugin-Konfig (`saveData`) — git-ignored.
 - **`main.js`** ist Build-Artefakt (gitignored) — nie von Hand editieren.
-- **`styles.css` existiert, ist absichtlich leer.** Slice 1 hat keine eigene CSS-Klasse (nur
-  native `Setting`-Zeilen und ein Statusleisten-Icon über `setIcon`) — die Datei liegt trotzdem
-  im Repo-Root und ist getrackt, mit einem Kommentar, der genau das erklärt. Grund: `npm run
-  deploy` und `.github/workflows/release.yml` behandeln `styles.css` als Pflicht-Asset
-  (kanonische Vorlage); ohne die Datei würde beides brechen. Braucht eine spätere Slice
-  eigenes UI-CSS, wird diese Datei befüllt — nicht neu angelegt.
+- **`styles.css` ist seit Slice A NICHT mehr leer** (~97 Zeilen). Bis Slice A trug die Datei
+  keine eigene CSS-Klasse (nur native `Setting`-Zeilen und ein Statusleisten-Icon über
+  `setIcon`) und lag nur deshalb getrackt im Repo-Root, weil `npm run deploy` und
+  `.github/workflows/release.yml` sie als Pflicht-Asset behandeln (kanonische Vorlage) — ohne
+  die Datei würde beides brechen. Mit der Bewertungs-Ansicht kam eigenes UI dazu: die Datei
+  trägt jetzt die Hub-Tab-Leiste (Kopie aus `obsidian-kit@0.37.1`, Herkunftsstempel im
+  Dateikopf — das Kit injiziert kein CSS, Consumer übernehmen die Regeln in ihre eigene
+  `styles.css`) und das Bewerten-Panel-CSS. Nur Theme-CSS-Variablen, keine festen Farben
+  (UI-STANDARD §3).
 
 ## Dach-Kontext (obsidian-plugins)
 

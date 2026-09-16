@@ -146,9 +146,13 @@ und das Plugin unter **Einstellungen → Community-Plugins** aktivieren.
 
 ## Verwendung
 
-Es gibt nichts zu starten und nichts zu klicken. Sobald ein Nachbarplugin die API aufruft,
-läuft die Aufzeichnung von selbst — und die einzigen drei Dinge, die du je mit LLM Lab tust,
-sind diese:
+Die Aufzeichnung selbst braucht nichts zu starten und nichts zu klicken. Sobald ein
+Nachbarplugin die API aufruft, läuft sie von selbst. Zum Sichten und Bewerten öffnest du den
+Tab **LLM Lab** (Ribbon-Icon oder der Befehl „LLM Lab öffnen") — er listet die Aufrufe neueste
+zuerst, zeigt zum ausgewählten den vollständigen Prompt samt Antwort und ist tastaturbedienbar:
+`j`/`k` bewegen die Auswahl, `g`/`b` bewerten den aktuellen Aufruf gut/schlecht, `Enter` öffnet
+Tags/Notiz/Korrektur, `Entf` löscht die Aufzeichnung. Darüber hinaus sind die einzigen drei
+Dinge, die du je mit LLM Lab tust, diese:
 
 - **Auf die Statusleiste sehen.** Sie zeigt ein Punkt-Symbol und *„Lab: schreibt mit"* oder
   ein Pause-Symbol und *„Lab: pausiert"*. Symbol **und** Text, nie Farbe allein.
