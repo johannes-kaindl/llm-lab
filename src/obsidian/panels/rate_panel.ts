@@ -5,6 +5,7 @@ import type { HubPanel } from "../../vendor/kit-obsidian/hub";
 import type { TraceRecord } from "../../core/types";
 import { applyFilter, TraceReader, type TraceFilter } from "../../core/trace_reader";
 import { type RateInput } from "../../core/dataset";
+import { RateDetailsModal } from "./rate_details_modal";
 
 /** Schmaler Vertrag zum Plugin — das Panel kennt weder Plugin noch Ports (UI-STANDARD §4). */
 export interface RatePanelHost {
@@ -170,6 +171,7 @@ export class RatePanel implements HubPanel<"rate"> {
     const fehler = r.error !== undefined;
     knopf(t("rate.up"), "thumbs-up", fehler, () => void this.bewerte(r, "up"));
     knopf(t("rate.down"), "thumbs-down", fehler, () => void this.bewerte(r, "down"));
+    knopf(t("rate.details"), "pencil", fehler, () => this.vertiefe(r, "up"));
     knopf(t("rate.delete"), "trash-2", false, () => void this.loesche(r));
 
     if (fehler) bar.createDiv({ cls: "llm-lab-fuss", text: t("rate.errorNotRateable") });
@@ -180,6 +182,20 @@ export class RatePanel implements HubPanel<"rate"> {
     await this.host.rate(r, { verdict, tags: [] });
     this.ratedIds.add(r.id);
     this.weiter();
+  }
+
+  /** Vertiefung: Urteil MIT Tags, Notiz und Korrektur. Ohne Urteil kein Dialog —
+   *  die Vertiefung ergaenzt eine Bewertung, sie ersetzt sie nicht. */
+  private vertiefe(r: TraceRecord, verdict: "up" | "down"): void {
+    if (r.error !== undefined) return;
+    new RateDetailsModal(this.host.app, verdict, (urteil) => {
+      if (!urteil) return;
+      void (async () => {
+        await this.host.rate(r, urteil);
+        this.ratedIds.add(r.id);
+        this.weiter();
+      })();
+    }).open();
   }
 
   private async loesche(r: TraceRecord): Promise<void> {
@@ -210,6 +226,7 @@ export class RatePanel implements HubPanel<"rate"> {
       g: () => void this.bewerte(r, "up"),
       b: () => void this.bewerte(r, "down"),
       Delete: () => void this.loesche(r),
+      Enter: () => this.vertiefe(r, "up"),
     };
     const tun = tasten[ev.key];
     if (!tun) return;
