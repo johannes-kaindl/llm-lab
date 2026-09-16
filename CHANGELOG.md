@@ -6,6 +6,8 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.5.0] — 2026-09-16
+
 ### Added
 - **Bewertungs-Ansicht.** Ein Tab im Hauptbereich listet aufgezeichnete Aufrufe, zeigt Prompt
   und Antwort in Lesebreite und nimmt ein Urteil per Tastatur entgegen (`j`/`k` blättern,
