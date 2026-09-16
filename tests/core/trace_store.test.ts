@@ -210,3 +210,46 @@ it("liefert beim Lesen einer unbekannten Datei einen leeren String", async () =>
   const { sink } = fakeSink();
   expect(await sink.read("lab/traces/gibtsnicht.jsonl")).toBe("");
 });
+
+describe("TraceStore — Serialisierung", () => {
+  /** Der BESTEHENDE Fehler: zwei parallele write() ueberlappen einander. */
+  it("fuehrt zwei gleichzeitige Schreibvorgaenge nacheinander aus", async () => {
+    const reihenfolge: string[] = [];
+    const sink: TraceSink = {
+      append: async (_p, data) => {
+        const id = JSON.parse(data).id as string;
+        reihenfolge.push(`start:${id}`);
+        await new Promise((r) => setTimeout(r, 5));
+        reihenfolge.push(`ende:${id}`);
+      },
+      list: async () => [],
+      remove: async () => {},
+      read: async () => "",
+      write: async () => {},
+    };
+    const store = new TraceStore(sink, "lab", limits, () => "2026-09-03");
+    await Promise.all([
+      store.writeNow({ ...rec, id: "a" }),
+      store.writeNow({ ...rec, id: "b" }),
+    ]);
+    // Ohne Kette waere die Reihenfolge start:a, start:b, ende:a, ende:b.
+    expect(reihenfolge).toEqual(["start:a", "ende:a", "start:b", "ende:b"]);
+  });
+
+  /** Der NEUE Fehler: ein append waehrend des Loeschens darf nicht verloren gehen. */
+  it("verliert keinen append, der waehrend eines Loeschvorgangs kommt", async () => {
+    const pfad = "lab/traces/2026-09-03.jsonl";
+    const { sink, files } = fakeSink({
+      [pfad]: JSON.stringify({ id: "alt" }) + "\n",
+    });
+    const store = new TraceStore(sink, "lab", limits, () => "2026-09-03");
+    // Beide gleichzeitig anstossen, ohne dazwischen zu awaiten.
+    const loeschen = store.removeRecord("2026-09-03", "alt");
+    const schreiben = store.writeNow({ ...rec, id: "neu" });
+    await Promise.all([loeschen, schreiben]);
+
+    const zeilen = files.get(pfad)!.trim().split("\n").map((l) => JSON.parse(l).id);
+    expect(zeilen).toContain("neu");
+    expect(zeilen).not.toContain("alt");
+  });
+});

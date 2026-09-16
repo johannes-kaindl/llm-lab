@@ -45,6 +45,18 @@ export class TraceStore {
     return `${this.baseDir}/traces`;
   }
 
+  /** Alle Vorgaenge, die die Trace-Schicht veraendern, haengen an EINER Promise-Kette.
+   *  Ohne sie ueberschreibt das zeilenweise Entfernen einen gleichzeitigen `append`
+   *  — stiller Datenverlust, der schlimmste Fehler in einem Logging-System. */
+  private tail: Promise<void> = Promise.resolve();
+
+  /** Fehler brechen die Kette NICHT ab: ein gescheiterter Schreibvorgang darf den
+   *  naechsten nicht mitreissen. Deshalb steht `job` in beiden Zweigen von `then`. */
+  private serialize(job: () => Promise<void>): Promise<void> {
+    this.tail = this.tail.then(job, job);
+    return this.tail;
+  }
+
   /** Fire-and-forget. Der Rueckgabetyp ist `void`, nicht `Promise<void>` — ein Aufrufer
    *  soll gar nicht erst in Versuchung kommen, darauf zu warten. */
   write(record: TraceRecord, opts?: WriteOptions): void {
@@ -65,14 +77,16 @@ export class TraceStore {
    *  was die Schluessel-Maskierung erzeugt (`••••`, `Bearer ••••`), matcht EMAIL/IBAN/
    *  PHONE/URLCRED. */
   async writeNow(record: TraceRecord, opts?: WriteOptions): Promise<void> {
-    try {
-      const afterSecrets = redactRecordSecrets(record, opts?.secrets ?? []);
-      const safe = opts?.redactPii ? redactPii(afterSecrets, opts.piiTerms ?? []) : afterSecrets;
-      await this.sink.append(`${this.dir()}/${this.today()}.jsonl`, JSON.stringify(safe) + "\n");
-      await this.rotate();
-    } catch (e) {
-      console.warn("LLM Lab: Trace konnte nicht geschrieben werden", e);
-    }
+    return this.serialize(async () => {
+      try {
+        const afterSecrets = redactRecordSecrets(record, opts?.secrets ?? []);
+        const safe = opts?.redactPii ? redactPii(afterSecrets, opts.piiTerms ?? []) : afterSecrets;
+        await this.sink.append(`${this.dir()}/${this.today()}.jsonl`, JSON.stringify(safe) + "\n");
+        await this.rotateNow();
+      } catch (e) {
+        console.warn("LLM Lab: Trace konnte nicht geschrieben werden", e);
+      }
+    });
   }
 
   /** Oeffentlich, damit ein Aufrufer (main.ts:onload) eine Rotation ausloesen kann, ohne
@@ -81,6 +95,11 @@ export class TraceStore {
    *  derselben Zusage wie bei `writeNow`: eine gescheiterte Rotation darf einen Aufrufer
    *  nie zu Fall bringen. */
   async rotate(): Promise<void> {
+    return this.serialize(() => this.rotateNow());
+  }
+
+  /** Die eigentliche Arbeit — NUR aufrufen, wenn man bereits in der Kette laeuft. */
+  private async rotateNow(): Promise<void> {
     try {
       const files = await this.sink.list(this.dir());
       for (const name of planRotation(files, this.limits(), this.today())) {
@@ -89,5 +108,33 @@ export class TraceStore {
     } catch (e) {
       console.warn("LLM Lab: Rotation fehlgeschlagen", e);
     }
+  }
+
+  /** Entfernt genau eine Zeile aus der Tagesdatei. Laeuft ueber dieselbe Kette wie
+   *  `append` — sonst geht ein gleichzeitiger Konsumenten-Aufruf verloren. */
+  async removeRecord(day: string, id: string): Promise<void> {
+    return this.serialize(async () => {
+      try {
+        const pfad = `${this.dir()}/${day}.jsonl`;
+        const roh = await this.sink.read(pfad);
+        if (roh === "") return;
+        const behalten = roh
+          .split("\n")
+          .filter((zeile) => {
+            if (zeile.trim() === "") return false;
+            try {
+              return (JSON.parse(zeile) as { id?: string }).id !== id;
+            } catch {
+              // Unparsbare Zeile stehen lassen: sie ist nicht der gesuchte Record,
+              // und stilles Wegwerfen waere genau der Datenverlust, den diese Kette
+              // verhindern soll.
+              return true;
+            }
+          });
+        await this.sink.write(pfad, behalten.length > 0 ? behalten.join("\n") + "\n" : "");
+      } catch (e) {
+        console.warn("LLM Lab: Record konnte nicht entfernt werden", e);
+      }
+    });
   }
 }

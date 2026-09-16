@@ -416,6 +416,14 @@ npm run version-bump / preflight / release   # delegieren ans zentrale ../tools/
 - **`vaultSink.list` liefert eine leere Liste, wenn der Ordner noch nicht existiert** (statt zu
   werfen) — `planRotation` bekommt dann `[]` und tut nichts, was für den allerersten Schreib-
   vorgang korrekt ist (kein Ordner, keine Dateien zum Rotieren).
+- **Alle verändernden Zugriffe auf die Trace-Schicht laufen über EINE Promise-Kette**
+  (`TraceStore.serialize`). Bis 2026-09-03 gab es keine: `write()` rief `void this.writeNow(...)`
+  direkt, zwei gleichzeitige Aufrufe überlappten einander samt der `rotate()` dahinter. Mit dem
+  zeilenweisen Entfernen (`removeRecord`) wäre daraus stiller Datenverlust geworden — ein
+  `append` zwischen `read` und `write` wird überschrieben. **`write()` bleibt fire-and-forget:**
+  die Kette ändert nichts an der Zusage, dass Telemetrie den Aufrufer nie bremst. Wer eine neue
+  verändernde Operation ergänzt, hängt sie in die Kette — und ruft **nie** `rotate()` aus einem
+  Job heraus auf (Selbst-Deadlock), sondern `rotateNow()`.
 - **`data.json`** ist die von Obsidian persistierte Plugin-Konfig (`saveData`) — git-ignored.
 - **`main.js`** ist Build-Artefakt (gitignored) — nie von Hand editieren.
 - **`styles.css` existiert, ist absichtlich leer.** Slice 1 hat keine eigene CSS-Klasse (nur
