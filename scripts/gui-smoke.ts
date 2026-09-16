@@ -798,6 +798,135 @@ async function main(): Promise<void> {
       ohne.lookup === "undefined" && ohne.konsument === "ok",
       `Lookup ${ohne.lookup} · defensiver Aufruf ${ohne.konsument}`);
 
+    // --- 16. View oeffnet ueber den Befehl -----------------------------------
+    // Der Vertrag ist nicht "es gibt eine View-Klasse", sondern "der Befehl macht
+    // genau EINE Leaf auf" — kein Duplikat bei mehrfachem Aufruf.
+    await cdp.evaluate(`app.commands.executeCommandById(${JSON.stringify(PLUGIN_ID + ":open-view")}); return true;`);
+    const leafAnzahl = await pollUntil<number>(cdp, `
+      return app.workspace.getLeavesOfType("llm-lab-view").length;
+    `, 10_000, 300);
+    record("View oeffnet ueber den Befehl llm-lab:open-view und dedupliziert",
+      leafAnzahl === 1,
+      `getLeavesOfType("llm-lab-view").length = ${String(leafAnzahl)}`);
+
+    // --- 17. View liegt im Hauptbereich, nicht in der Seitenleiste -----------
+    // Design-Entscheidung 2026-09-02 §2: eine 300px-Sidebar macht aus dem Vergleich
+    // System-Prompt/Antwort eine Lese-Roehre. Gemessen am Wurzelcontainer der Leaf,
+    // nicht an einer Annahme ueber getLeaf(true).
+    const bereich = await cdp.evaluate<{ vorhanden: boolean; inSidebar?: boolean }>(`
+      const leaves = app.workspace.getLeavesOfType("llm-lab-view");
+      if (leaves.length === 0) return { vorhanden: false };
+      const el = leaves[0].view.containerEl;
+      const inSidebar = Boolean(el.closest(".mod-left-split") || el.closest(".mod-right-split"));
+      return { vorhanden: true, inSidebar };
+    `);
+    record("View liegt im Hauptbereich (nicht unter .mod-left-split/.mod-right-split)",
+      bereich.vorhanden === true && bereich.inSidebar === false,
+      bereich.vorhanden ? `inSidebar = ${String(bereich.inSidebar)}` : "keine Leaf gefunden");
+
+    // --- 18. Tab-Leiste existiert ---------------------------------------------
+    const tabsDa = await cdp.evaluate<boolean>(`return Boolean(document.querySelector(".okit-hub-tabs"));`);
+    record("Hub-Tab-Leiste (.okit-hub-tabs) ist vorhanden", tabsDa === true, `vorhanden: ${String(tabsDa)}`);
+
+    // Hilfsausdruck fuer die folgenden Punkte: der aktive Tab neu laden, ohne die Leaf zu
+    // schliessen und neu zu oeffnen — `ctrl` ist zur Laufzeit ein normales Feld (TS-`private`
+    // ist Compile-Zeit), und `refreshActive()` ist genau der Weg, den auch ein echter Import
+    // oder Deep-Link nimmt (hub.ts).
+    const refreshAktivenTab = `
+      const leaves = app.workspace.getLeavesOfType("llm-lab-view");
+      if (leaves.length) leaves[0].view.ctrl.refreshActive();
+      return true;
+    `;
+
+    // --- 19. Jede Bewerten-Aktion ist SICHTBAR, nicht nur im DOM -------------
+    // Die §4-Falle: in einer Seitenleiste ist eine Kopf-Aktion im DOM und null Pixel hoch.
+    // Aus den vorangegangenen Pruefpunkten stehen bereits mehrere unbewertete Records im
+    // heutigen Trace, die Aktionsleiste ist also gerendert.
+    const hoehen = await cdp.evaluate<number[]>(`
+      Array.from(document.querySelectorAll(".llm-lab-aktionen button"))
+        .map((b) => b.getBoundingClientRect().height)
+    `);
+    const unsichtbar = hoehen.filter((h) => h <= 0).length;
+    record("Bewerten-Aktionen sind sichtbar (nicht nur im DOM)",
+      hoehen.length >= 3 && unsichtbar === 0,
+      hoehen.length < 3 ? `nur ${hoehen.length} Aktion(en) gefunden` : `${unsichtbar} Aktion(en) 0 Pixel hoch`);
+
+    // --- 20. Empty-State bei leerem Datensatz ---------------------------------
+    // Trace-Ordner komplett leeren (inkl. der erfundenen alt/uralt-Dateien aus 7./8. — die
+    // finally-Aufraeumung prueft `exists()` vorher und stoert sich nicht an ihrem Fehlen),
+    // dann den aktiven Tab neu laden statt die View zu schliessen/oeffnen: `open-view` mit
+    // bereits offener Leaf ruft nur `revealLeaf` auf, keinen `reload()`.
+    const geleert = await cdp.evaluate<number>(`
+      const listung = await app.vault.adapter.list(${JSON.stringify(tracesDir)});
+      let n = 0;
+      for (const pfad of (listung.files || [])) { await app.vault.adapter.remove(pfad); n++; }
+      return n;
+    `);
+    await cdp.evaluate(refreshAktivenTab);
+    const leer = await pollUntil<{ da: boolean; text: string }>(cdp, `
+      const el = document.querySelector(".llm-lab-empty");
+      return el ? { da: true, text: (el.textContent || "").trim() } : null;
+    `, 10_000, 300);
+    record("Empty-State erscheint bei leerem Datensatz und traegt Text",
+      leer?.da === true && Boolean(leer.text),
+      leer ? `„${leer.text}" (${geleert} Datei(en) geleert)` : "kein .llm-lab-empty gefunden");
+
+    // --- 21. Ein Urteil landet in dataset.jsonl -------------------------------
+    // Ueber den Befehl bewerten, nicht ueber die Taste: ein Tastendruck haengt am Fokus
+    // und macht den Pruefpunkt flaky. Die Zeile wird ueber die Auswahl (Klick) angesteuert,
+    // die Bewertung selbst ueber den Command — genau die Trennung, die main.ts anbietet.
+    const bewertId = await cdp.evaluate<string>(logRuf("smoke-rate"));
+    await cdp.evaluate(refreshAktivenTab);
+    await pollUntil<boolean>(cdp, `return document.querySelector(".llm-lab-zeile") ? true : null;`, 10_000, 300);
+    await cdp.evaluate(`document.querySelector(".llm-lab-zeile").click(); return true;`);
+    await cdp.evaluate(`app.commands.executeCommandById(${JSON.stringify(PLUGIN_ID + ":rate-up")}); return true;`);
+    const datasetPfad = `${base}/dataset.jsonl`;
+    const datasetZeile = await pollUntil<string>(cdp, `
+      if (!(await app.vault.adapter.exists(${JSON.stringify(datasetPfad)}))) return null;
+      const t = await app.vault.adapter.read(${JSON.stringify(datasetPfad)});
+      const treffer = t.split("\\n").filter(Boolean).find(l => l.includes(${JSON.stringify(bewertId)}));
+      return treffer || null;
+    `, 10_000, 500);
+    let eintrag: { trace?: { id?: string }; verdict?: string } | null = null;
+    try { eintrag = datasetZeile ? (JSON.parse(datasetZeile) as { trace?: { id?: string }; verdict?: string }) : null; } catch { eintrag = null; }
+    record("Eine Bewertung landet in dataset.jsonl mit der Trace-id und verdict \"up\"",
+      eintrag?.trace?.id === bewertId && eintrag?.verdict === "up",
+      eintrag ? `trace.id ${String(eintrag.trace?.id)} · verdict ${String(eintrag.verdict)}` : "dataset.jsonl enthaelt den Record nicht");
+
+    // --- 22. Loeschen entfernt die Zeile aus der Trace-Datei, der Rest bleibt --
+    // Zwei frische Records: einer wird geloescht, einer bleibt — sonst belegt ein leerer
+    // Rest nichts (er koennte auch durch einen Bug entstehen, der ALLES leert).
+    const behaltenId = await cdp.evaluate<string>(logRuf("smoke-keep"));
+    const loeschId = await cdp.evaluate<string>(logRuf("smoke-delete"));
+    await cdp.evaluate(refreshAktivenTab);
+    await pollUntil<boolean>(cdp, `return document.querySelector(".llm-lab-zeile") ? true : null;`, 10_000, 300);
+    // Sortierung ist ts absteigend (trace_reader.ts): der zuletzt geschriebene Record
+    // ("smoke-delete") steht als erste Zeile oben und wird per Klick ausgewaehlt.
+    await cdp.evaluate(`document.querySelector(".llm-lab-zeile").click(); return true;`);
+    await cdp.evaluate(`app.commands.executeCommandById(${JSON.stringify(PLUGIN_ID + ":delete-record")}); return true;`);
+    // Loeschen laeuft ueber confirmAction() (Bestaetigungs-Modal, UI-STANDARD verbindlich) —
+    // der destruktive Knopf im modal-button-container wird angeklickt, nicht die Taste.
+    await pollUntil<boolean>(cdp, `
+      return document.querySelector(".modal-button-container .mod-warning") ? true : null;
+    `, 5000, 200);
+    await cdp.evaluate(`
+      const btn = document.querySelector(".modal-button-container .mod-warning");
+      if (btn) btn.click();
+      return true;
+    `);
+    const nachLoeschen = await pollUntil<string>(cdp, `
+      if (!(await app.vault.adapter.exists(${JSON.stringify(heuteDatei)}))) return null;
+      const t = await app.vault.adapter.read(${JSON.stringify(heuteDatei)});
+      return t.includes(${JSON.stringify(loeschId)}) ? null : (t || "(leer)");
+    `, 10_000, 500);
+    const geloeschtWeg = nachLoeschen !== null;
+    const behalteneNochDa = geloeschtWeg && nachLoeschen.includes(behaltenId);
+    record("Loeschen entfernt die Zeile aus der Trace-Datei, uebrige Zeilen bleiben",
+      geloeschtWeg && behalteneNochDa,
+      geloeschtWeg
+        ? `geloeschte id (${loeschId}) weg · behaltene id (${behaltenId}) noch da: ${behalteneNochDa}`
+        : "geloeschte id steht weiterhin in der Trace-Datei (Timeout)");
+
   } finally {
     if (savedSettings && !keep) {
       const zurueck = await cdp.evaluate<{ datei: string }>(`
