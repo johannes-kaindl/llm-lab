@@ -6,8 +6,10 @@ import type { TraceStore } from "./core/trace_store";
  *  Konsumenten pruefen sie, bevor sie sich auf die Form verlassen.
  *  2 (2026-08-23): `secrets` und `contextPaths` auf LabLogInput.
  *  3 (2026-08-30): `promptTemplate` auf LabLogInput; `systemPromptHash` im Record
- *  entfaellt zugunsten von `promptTemplateHash`. */
-export const LLM_LAB_API_VERSION = 3;
+ *  entfaellt zugunsten von `promptTemplateHash`.
+ *  4 (2026-09-03): `turnId` auf LabLogInput — klammert mehrere Aufrufe einer
+ *  Nutzer-Handlung (Agent-Loop). Erheben muss diese Fassung, gruppieren darf spaeter. */
+export const LLM_LAB_API_VERSION = 4;
 
 export interface LabStatus {
   apiVersion: number;

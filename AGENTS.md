@@ -89,6 +89,12 @@ Nicht verhandelbare Eigenschaften:
   der zweite Bump; das Verfahren (Anbieter zuerst, Konsument danach) ist damit kein Einzelfall
   mehr, sondern der eingespielte Weg.
 
+  **Sie steht seit 2026-09-03 auf `4`** (`LLM_LAB_API_VERSION`, `plugin_api.ts`): `LabLogInput`
+  trägt zusätzlich `turnId?: string` — die Klammer um mehrere Aufrufe EINER Nutzer-Handlung.
+  Anlass ist der bevorstehende Anschluss von `koda-agent`, dessen Agent-Loop pro Handlung
+  mehrere Aufrufe macht: wer einen einzelnen davon bewertet, bewertet ein Fragment. Dritter
+  Bump, gleiches Verfahren — **Anbieter zuerst, Konsument danach.**
+
 ### Verhältnis zum Kit
 
 - **`redactSecrets`/`redactRecordSecrets`** (`src/core/redact_secrets.ts`) ist **übernommen aus

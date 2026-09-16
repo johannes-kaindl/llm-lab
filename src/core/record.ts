@@ -12,6 +12,8 @@ export interface TraceInput {
    *  Kontext, ohne Nutzereingabe. Nur Hash-Quelle: der Text selbst wandert nicht in
    *  den Record (er steht ohnehin in `messages`). */
   promptTemplate?: string;
+  /** s. TraceRecord.turnId — wird unveraendert durchgereicht. */
+  turnId?: string;
   content: string;
   reasoning?: string;
   finishReason?: string;
@@ -52,6 +54,7 @@ export function buildTraceRecord(input: TraceInput): TraceRecord {
     model: input.model,
     endpointHost: hostOf(input.endpointUrl),
     ...(input.promptTemplate ? { promptTemplateHash: hashPrompt(input.promptTemplate) } : {}),
+    ...(input.turnId ? { turnId: input.turnId } : {}),
     messages: input.messages,
     response: {
       content: input.content,

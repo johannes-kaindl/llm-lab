@@ -6,6 +6,11 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+- **`apiVersion` 4: `turnId` auf `LabLogInput`.** Klammert mehrere LLM-Aufrufe, die zu einer
+  Nutzer-Handlung gehören (Agent-Loop mit Tool-Calls). Optional — ein Konsument, der nichts
+  meldet, verhält sich unverändert.
+
 ### Changed
 - **GUI-Smoke: der Prüfgegenstand kommt aus dem Lauf, nicht aus der Konvention.** Der
   Deploy-Abgleich las `stagingVaultDir("llm-lab")`, während der Treiber per `--vault` an ein

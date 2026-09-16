@@ -19,6 +19,10 @@ export interface TraceRecord {
    *  ganze System-Nachricht: die traegt je nach Pfad Retrieval-Kontext oder eine
    *  Nutzereingabe, und ein Hash darueber gruppiert nichts. */
   promptTemplateHash?: string;
+  /** Klammert mehrere Aufrufe, die zu EINER Nutzer-Handlung gehoeren (Agent-Loop mit
+   *  Tool-Calls). Nur der Konsument kennt diese Zusammengehoerigkeit — aus Zeitnaehe
+   *  laesst sie sich nur raten. Fehlt, wenn der Aufrufer nichts meldet. */
+  turnId?: string;
   messages: ChatMessage[];
   response: { content: string; reasoning?: string };
   finishReason?: string;

@@ -102,8 +102,8 @@ describe("LlmLabApi", () => {
 });
 
 describe("LabLogInput — die Slice-2-Felder", () => {
-  it("meldet Vertragsversion 3", () => {
-    expect(LLM_LAB_API_VERSION).toBe(3);
+  it("meldet Vertragsversion 4", () => {
+    expect(LLM_LAB_API_VERSION).toBe(4);
   });
 
   it("schreibt weder secrets noch contextPaths in den Record", () => {

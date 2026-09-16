@@ -65,6 +65,16 @@ describe("buildTraceRecord", () => {
     const r = buildTraceRecord({ ...input, promptTemplate: "Du bist knapp." });
     expect(r).not.toHaveProperty("promptTemplate");
   });
+
+  it("reicht turnId durch, wenn der Aufrufer eine meldet", () => {
+    const r = buildTraceRecord({ ...input, turnId: "turn-7" });
+    expect(r.turnId).toBe("turn-7");
+  });
+
+  it("setzt turnId nicht, wenn der Aufrufer keine meldet", () => {
+    const r = buildTraceRecord(input);
+    expect("turnId" in r).toBe(false);
+  });
 });
 
 describe("hashPrompt", () => {
