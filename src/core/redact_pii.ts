@@ -64,7 +64,18 @@ function redactText(
   return out;
 }
 
-export function redactPii(record: TraceRecord, extra: string[]): TraceRecord {
+export interface PiiRedactor {
+  /** Redigiert die Textfelder eines Records. */
+  record(r: TraceRecord): TraceRecord;
+  /** Redigiert einen einzelnen Text mit DEMSELBEN Zaehler — fuer Felder, die nicht
+   *  Teil des Records sind (Korrekturtext, Notiz einer Bewertung). */
+  text(s: string): string;
+}
+
+/** Ein Redaktor mit EINEM Platzhalter-Zaehler ueber alles, was durch ihn laeuft.
+ *  Genau das ist die Zusage: dieselbe Adresse bekommt in Prompt, Antwort UND
+ *  Korrekturtext denselben Platzhalter. Zwei getrennte Laeufe koennten das nicht. */
+export function createPiiRedactor(extra: string[]): PiiRedactor {
   const mapsByLabel = new Map<string, Map<string, string>>();
   for (const p of PATTERNS) mapsByLabel.set(p.label, new Map());
 
@@ -75,18 +86,26 @@ export function redactPii(record: TraceRecord, extra: string[]): TraceRecord {
     customRe = new RegExp(customs.map(escapeRegExp).join("|"), "g");
   }
 
-  const redact = (text: string): string => redactText(text, customRe, mapsByLabel);
+  const redact = (t: string): string => redactText(t, customRe, mapsByLabel);
 
   return {
-    ...record,
-    messages: record.messages.map((m) => ({ ...m, content: redact(m.content) })),
-    response: {
-      ...record.response,
-      content: redact(record.response.content),
-      ...(record.response.reasoning !== undefined
-        ? { reasoning: redact(record.response.reasoning) }
-        : {}),
-    },
-    ...(record.error !== undefined ? { error: redact(record.error) } : {}),
+    text: redact,
+    record: (record) => ({
+      ...record,
+      messages: record.messages.map((m) => ({ ...m, content: redact(m.content) })),
+      response: {
+        ...record.response,
+        content: redact(record.response.content),
+        ...(record.response.reasoning !== undefined
+          ? { reasoning: redact(record.response.reasoning) }
+          : {}),
+      },
+      ...(record.error !== undefined ? { error: redact(record.error) } : {}),
+    }),
   };
+}
+
+/** Unveraenderte Fassade — `TraceStore.writeNow` und alle bestehenden Tests haengen daran. */
+export function redactPii(record: TraceRecord, extra: string[]): TraceRecord {
+  return createPiiRedactor(extra).record(record);
 }

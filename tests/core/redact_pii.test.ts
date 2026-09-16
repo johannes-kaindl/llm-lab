@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { redactPii } from "../../src/core/redact_pii";
+import { redactPii, createPiiRedactor } from "../../src/core/redact_pii";
 import type { TraceRecord } from "../../src/core/types";
 
 function makeRecord(overrides: Partial<TraceRecord> = {}): TraceRecord {
@@ -117,5 +117,40 @@ describe("redactPii", () => {
     });
     redactPii(rec, []);
     expect(rec.messages[0]?.content).toBe("Schreib an a@b.de");
+  });
+});
+
+describe("createPiiRedactor", () => {
+  it("gibt derselben Adresse in Record UND Korrekturtext denselben Platzhalter", () => {
+    const r = createPiiRedactor([]);
+    const rec = r.record({
+      id: "x", ts: "2026-09-03T00:00:00.000Z", plugin: "p", feature: "f",
+      model: "m", endpointHost: "h",
+      messages: [{ role: "user", content: "schreib an anna@example.com" }],
+      response: { content: "ok" }, latencyMs: 1,
+    });
+    const korrektur = r.text("besser: Mail an anna@example.com schicken");
+
+    expect(rec.messages[0].content).toContain("[EMAIL_1]");
+    expect(korrektur).toContain("[EMAIL_1]");
+    expect(korrektur).not.toContain("[EMAIL_2]");
+  });
+
+  it("vergibt fuer eine ZWEITE Adresse einen eigenen Platzhalter", () => {
+    const r = createPiiRedactor([]);
+    r.text("erste: a@example.com");
+    expect(r.text("zweite: b@example.com")).toContain("[EMAIL_2]");
+  });
+
+  it("redactPii verhaelt sich unveraendert", () => {
+    const rec = {
+      id: "x", ts: "2026-09-03T00:00:00.000Z", plugin: "p", feature: "f",
+      model: "m", endpointHost: "h",
+      messages: [{ role: "user" as const, content: "a@example.com" }],
+      response: { content: "a@example.com" }, latencyMs: 1,
+    };
+    const out = redactPii(rec, []);
+    expect(out.messages[0].content).toBe("[EMAIL_1]");
+    expect(out.response.content).toBe("[EMAIL_1]");
   });
 });
