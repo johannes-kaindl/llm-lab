@@ -286,10 +286,10 @@ async function main(): Promise<void> {
     `);
     // Der Treiber ist selbst ein Konsument dieses Vertrags — genau wie vault-rags
     // `lab_client.ts` traegt er die apiVersion als eigene Kopie und muss bei jedem Bump von
-    // `LLM_LAB_API_VERSION` (src/plugin_api.ts) manuell nachziehen. Stand: 3 (seit dem Bump vom
-    // 2026-08-30, "feat(api)!: apiVersion 3 — promptTemplate auf LabLogInput"). Vorher 2 (431c23c).
+    // `LLM_LAB_API_VERSION` (src/plugin_api.ts) manuell nachziehen. Stand: 4 (seit dem Bump vom
+    // 2026-09-16, "feat(api): turnId aufnehmen — apiVersion 4"). Vorher 3 (2026-08-30).
     record("Anbieter-Vertrag haengt am Plugin-Objekt (apiVersion, status, log)",
-      vertrag.apiVersion === 3 && vertrag.recording === true && vertrag.logTyp === "function",
+      vertrag.apiVersion === 4 && vertrag.recording === true && vertrag.logTyp === "function",
       `apiVersion ${String(vertrag.apiVersion)} · recording ${String(vertrag.recording)}`);
     record("log() gibt die id SYNCHRON zurueck (kein Promise)",
       vertrag.ergebnisTyp === "string",
@@ -843,8 +843,8 @@ async function main(): Promise<void> {
     // Aus den vorangegangenen Pruefpunkten stehen bereits mehrere unbewertete Records im
     // heutigen Trace, die Aktionsleiste ist also gerendert.
     const hoehen = await cdp.evaluate<number[]>(`
-      Array.from(document.querySelectorAll(".llm-lab-aktionen button"))
-        .map((b) => b.getBoundingClientRect().height)
+      return Array.from(document.querySelectorAll(".llm-lab-aktionen button"))
+        .map((b) => b.getBoundingClientRect().height);
     `);
     const unsichtbar = hoehen.filter((h) => h <= 0).length;
     record("Bewerten-Aktionen sind sichtbar (nicht nur im DOM)",
@@ -906,11 +906,17 @@ async function main(): Promise<void> {
     await cdp.evaluate(`app.commands.executeCommandById(${JSON.stringify(PLUGIN_ID + ":delete-record")}); return true;`);
     // Loeschen laeuft ueber confirmAction() (Bestaetigungs-Modal, UI-STANDARD verbindlich) —
     // der destruktive Knopf im modal-button-container wird angeklickt, nicht die Taste.
+    // ⚠️ Zwei Klassen, nicht eine (UI-STANDARD §7): applyDestructive() ruft ab Obsidian 1.13
+    // setDestructive() und schreibt "mod-destructive", darunter faellt es auf "mod-warning"
+    // zurueck. Ein Selektor, der nur eine der beiden sucht, ist auf einer aktuellen
+    // Obsidian-Version dauerhaft rot bei intaktem Code — gemessen genau hier (1.14.2 schreibt
+    // mod-destructive, der urspruengliche Selektor suchte nur .mod-warning).
+    const DESTRUCTIVE_SEL = ".modal-button-container .mod-warning, .modal-button-container .mod-destructive";
     await pollUntil<boolean>(cdp, `
-      return document.querySelector(".modal-button-container .mod-warning") ? true : null;
+      return document.querySelector(${JSON.stringify(DESTRUCTIVE_SEL)}) ? true : null;
     `, 5000, 200);
     await cdp.evaluate(`
-      const btn = document.querySelector(".modal-button-container .mod-warning");
+      const btn = document.querySelector(${JSON.stringify(DESTRUCTIVE_SEL)});
       if (btn) btn.click();
       return true;
     `);

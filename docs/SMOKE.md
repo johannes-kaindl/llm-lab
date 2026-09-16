@@ -150,10 +150,44 @@ Der Reload in Punkt 7 ist `disablePlugin`/`enablePlugin`, nicht Obsidians `Cmd+R
 lässt `onload` neu laufen, aber nur der App-Reload prüft zusätzlich, dass nichts in einer
 anderen Schicht überdauert.
 
+## Prüfpunkte 16–22 (Task 13, Slice A „Bewerten", 2026-09-16)
+
+Sieben neue Punkte für die Bewertungs-Ansicht — Sektionsnummerierung folgt den Kommentaren in
+`scripts/gui-smoke.ts` selbst (§16–22), nicht dem älteren Nummernschema der Tabelle oben (das
+schon vor dieser Task von der tatsächlichen Reihenfolge im Code abwich — 41 `record()`-Aufrufe
+vor dieser Task, nicht 32/38 wie die Kopfzeile bzw. die Durchläufe-Tabelle zuletzt auswiesen;
+nicht in dieser Task nachgezogen, s. Meldung an den Master).
+
+| # | Prüft |
+|---|---|
+| 16 | View öffnet über den Befehl `llm-lab:open-view` und dedupliziert bei erneutem Aufruf |
+| 17 | View liegt im **Hauptbereich**, nicht unter `.mod-left-split`/`.mod-right-split` |
+| 18 | Hub-Tab-Leiste (`.okit-hub-tabs`) ist vorhanden |
+| 19 | Jede Aktion in `.llm-lab-aktionen` ist **sichtbar** (`getBoundingClientRect().height > 0`), nicht nur im DOM — die §4-Falle |
+| 20 | Empty-State erscheint bei leerem Datensatz und trägt Text |
+| 21 | Ein Urteil landet in `dataset.jsonl`, mit der Trace-id und `verdict` |
+| 22 | Löschen entfernt die Zeile aus der Trace-Datei, übrige Zeilen bleiben stehen |
+
+**Zwei Fehler beim ersten Lauf gefunden und behoben, beide bereits dokumentierte Fallen:**
+- Punkt 19 fehlte das `return` im CDP-Ausdruck (`Cdp.evaluate` wickelt den String in eine
+  async-IIFE; ein Ausdruck ohne `return` liefert `undefined` — genau die in
+  `tools/obsidian-cdp/README.md` beschriebene Falle). Führte zu einem Abbruch der gesamten
+  Restlaufzeit (`Cannot read properties of undefined (reading 'filter')`), nicht zu einem roten
+  Einzelpunkt.
+- Punkt 22 suchte den destruktiven Bestätigungs-Knopf nur über `.mod-warning` — `applyDestructive`
+  (Kit) schreibt ab Obsidian 1.13 `mod-destructive` und fällt erst darunter auf `mod-warning`
+  zurück (UI-STANDARD §7, dort bereits an zwei anderen Repos gemessen). Auf 1.14.2 blieb der Klick
+  wirkungslos, der Punkt lief in den Timeout. Selektor auf beide Klassen erweitert.
+- Zusätzlich: der bestehende Vertragspunkt 1 prüfte `apiVersion === 3` — Task 1 dieses Plans hatte
+  `LLM_LAB_API_VERSION` bereits auf 4 gehoben, der Treiber trägt die Zahl aber als eigene Kopie
+  (Kommentar an der Stelle sagt das selbst: „muss bei jedem Bump manuell nachziehen") und wurde
+  in Task 1s Dateiliste nicht mitgeführt. Nachgezogen.
+
 ## Durchläufe
 
 | Datum | Obsidian | Ergebnis | Gegenprobe |
 |---|---|---|---|
+| 2026-09-16 | 1.14.2 (Vault `llm-lab`, Oberfläche de) | **45/45 grün** — Task 13, Slice A „Bewerten" (Punkte 16–22 neu). Kopfzeile weist den gemessenen Pfad aus, keine Herkunftswarnung — Ausgang `deployt`. Kein „danach anders grün": drei aufeinanderfolgende Läufe, jeder mit einem neuen, konkreten Fund (s. Abschnitt oben) — Baseline-Lauf brach mit einer Exception ab (fehlendes `return`), zweiter Lauf 44/45 (Punkt 22 Timeout wegen `mod-destructive`), dritter Lauf 45/45. | Baseline-Lauf: Abbruch nach Punkt 18. Zweiter Lauf nach dem `return`-Fix: 44/45. Dritter Lauf nach dem Selektor-Fix: 45/45. |
 | 2026-09-02 | 1.13.7 (Vault `llm-lab`, Oberfläche de) | **38/38 grün** — Einbau des Herkunfts-Guards (Lesson 2026-09-02, kuro-gamification). Kopfzeile weist den gemessenen Pfad aus: `Vault: llm-lab (/…/60_StagingVaults/llm-lab/.obsidian/plugins/llm-lab)`. Keine Herkunftswarnung — Ausgang `deployt`, per sha1 belegt. | **Vollständig, alle vier Ausgänge einzeln — s. Tabelle unten.** Dazu der Beweis für den Umzug selbst: Lauf gegen ein **fremdes** Fenster (`--vault koda-agent`) bricht ab, während im Staging-Vault alle drei Dateien byte-identisch lagen — der alte Code wäre grün durchgelaufen |
 | 2026-08-30 | 1.13.7 (Vault `llm-lab`, Oberfläche en) | **38/38 grün** — Task 8 (`promptTemplateHash`, `apiVersion` 2 → 3), Branch `feat/prompttemplate-hash` `e50f0ba` | Vertrags-Prüfpunkt meldet `apiVersion 3` (nicht 2) — der Treiber lädt das Plugin zu Beginn frisch, der Fund wäre also ein veralteter Deploy, nicht Code |
 | 2026-08-24 | 1.13.7 (Vault `llm-lab`, Oberfläche de) | **38/38 grün** — Lauf vor dem 0.3.0-Release, nach der Wortlaut-Präzisierung der Ordner-Filter-Grenze (Settings-Text + beide READMEs) | — Text-, keine Struktur-Änderung; die drei `render`-Hatches und beide Renderer-Pfade sind im selben Lauf namentlich nachgewiesen |
