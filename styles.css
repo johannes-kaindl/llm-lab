@@ -1,4 +1,93 @@
-/* No custom styles yet — Slice 1 has no CSS classes of its own (settings tab uses only
-   native Obsidian `Setting` rows and `setIcon` for the status-bar icon). This file exists
-   because `npm run deploy` and `.github/workflows/release.yml` expect a `styles.css` asset;
-   it stays intentionally empty until a later slice needs real styling. */
+/* LLM Lab — Styles.
+   Bis Slice A war diese Datei absichtlich leer (nur native Setting-Zeilen und ein
+   Statusleisten-Icon). Mit der Bewertungs-Ansicht bekommt das Plugin eigenes UI.
+
+   HUB_CSS ist eine Kopie aus obsidian-kit@0.37.1 (src/obsidian/hub.ts) — das Kit
+   injiziert kein CSS, Consumer uebernehmen die Regeln in ihre eigene styles.css.
+   Nur Theme-Variablen, keine festen Farben (UI-STANDARD §3). */
+
+/* ── Kit: Hub-Tab-Leiste (Kopie aus HUB_CSS@0.37.1) ───────────────────────── */
+/* Hub-Tab-Leiste (obsidian-kit: buildHubInto). Die vier nummerierten Zutaten gehören
+   zusammen — jede einzeln ist wirkungslos, s. Modulkopf von src/obsidian/hub.ts. */
+.okit-hub-root { display: flex; flex-direction: column; height: 100%; overflow: hidden; }
+.okit-hub-tabs {
+  display: flex;
+  flex-wrap: wrap;                 /* (1) erlaubt die zweite Zeile */
+  gap: var(--size-2-1);
+  flex: 0 0 auto;
+  border-bottom: 1px solid var(--background-modifier-border);
+}
+/* box-shadow: none nimmt dem nativen <button> nur seinen Ruhe-Schatten. Obsidians
+   Fokusring bleibt: button:focus-visible { box-shadow: 0 0 0 3px … } hat mit (0,1,1) die
+   höhere Spezifität als .okit-hub-tab (0,1,0) — geprüft in Obsidians app.css. */
+.okit-hub-tab {
+  display: flex;
+  flex: 1 1 auto;                  /* (2) Basis = Inhaltsbreite, sonst bricht nichts um */
+  min-width: 0;                    /* (3) hebt min-width:auto auf, sonst sprengt ein langes Label die Zeile */
+  align-items: center;
+  justify-content: center;
+  gap: var(--size-4-1);
+  padding: var(--size-2-3) var(--size-4-2);
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid transparent;
+  border-radius: 0;
+  box-shadow: none;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+.okit-hub-tab-label {              /* (4) ohne eigenes Label-Element kann nichts ellipsieren */
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.okit-hub-tab-icon { display: inline-flex; flex: 0 0 auto; }
+.okit-hub-tab:hover { color: var(--text-normal); background: var(--background-modifier-hover); }
+.okit-hub-tab.is-active { color: var(--text-normal); border-bottom-color: var(--interactive-accent); }
+.okit-hub-content { flex: 1 1 auto; min-height: 0; position: relative; overflow: hidden; }
+.okit-hub-panel { height: 100%; overflow: auto; }
+.okit-hub-panel.is-hidden { display: none; }
+
+/* ── Bewerten-Panel ───────────────────────────────────────────────────────── */
+.llm-lab-rate { display: flex; flex-direction: column; gap: var(--size-4-2); height: 100%; }
+
+.llm-lab-filter { display: flex; flex-wrap: wrap; gap: var(--size-4-2); align-items: center; }
+
+.llm-lab-liste {
+  flex: 0 0 auto;
+  max-height: 30vh;
+  overflow-y: auto;
+  border: 1px solid var(--background-modifier-border);
+  border-radius: var(--radius-s);
+}
+
+.llm-lab-zeile {
+  display: flex;
+  gap: var(--size-4-2);
+  align-items: center;
+  padding: var(--size-4-1) var(--size-4-2);
+  cursor: pointer;
+}
+.llm-lab-zeile:hover { background: var(--background-modifier-hover); }
+.llm-lab-zeile.is-active { background: var(--background-modifier-active-hover); }
+.llm-lab-zeile-meta { color: var(--text-muted); font-size: var(--font-ui-smaller); }
+
+/* Zustand nie ueber Farbe allein (WCAG 1.4.1): Icon UND Text. */
+.llm-lab-urteil { display: inline-flex; align-items: center; gap: var(--size-4-1); font-size: var(--font-ui-smaller); }
+
+.llm-lab-detail {
+  flex: 1 1 auto;
+  overflow-y: auto;
+  padding: var(--size-4-2);
+  background: var(--background-secondary);
+  border-radius: var(--radius-s);
+}
+.llm-lab-nachricht { margin-bottom: var(--size-4-3); }
+.llm-lab-rolle { color: var(--text-muted); font-size: var(--font-ui-smaller); text-transform: uppercase; }
+.llm-lab-inhalt { white-space: pre-wrap; word-break: break-word; }
+
+.llm-lab-aktionen { display: flex; flex-wrap: wrap; gap: var(--size-4-2); }
+
+.llm-lab-fuss { color: var(--text-muted); font-size: var(--font-ui-smaller); }
+
+.llm-lab-empty { color: var(--text-muted); padding: var(--size-4-4); text-align: center; }
