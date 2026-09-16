@@ -2,19 +2,26 @@ import { describe, it, expect } from "vitest";
 import { TraceStore, type TraceSink } from "../../src/core/trace_store";
 import type { TraceRecord } from "../../src/core/types";
 
-function fakeSink() {
+function fakeSink(initial: Record<string, string> = {}) {
+  const files = new Map<string, string>(Object.entries(initial));
   const written: Array<{ path: string; data: string }> = [];
   const removed: string[] = [];
   const sink: TraceSink = {
     append: async (path, data) => {
+      files.set(path, (files.get(path) ?? "") + data);
       written.push({ path, data });
     },
     list: async () => [],
     remove: async (path) => {
+      files.delete(path);
       removed.push(path);
     },
+    read: async (path) => files.get(path) ?? "",
+    write: async (path, data) => {
+      files.set(path, data);
+    },
   };
-  return { sink, written, removed };
+  return { sink, written, removed, files };
 }
 
 const rec: TraceRecord = {
@@ -55,6 +62,8 @@ describe("TraceStore", () => {
       },
       list: async () => [],
       remove: async () => {},
+      read: async () => "",
+      write: async () => {},
     };
     const store = new TraceStore(sink, "lab", limits, () => "2026-08-22");
     await expect(store.writeNow(rec)).resolves.toBeUndefined();
@@ -68,6 +77,8 @@ describe("TraceStore", () => {
       remove: async (p) => {
         removed.push(p);
       },
+      read: async () => "",
+      write: async () => {},
     };
     await new TraceStore(sink, "lab", limits, () => "2026-08-22").writeNow(rec);
     expect(removed).toEqual(["lab/traces/2026-08-01.jsonl"]);
@@ -129,6 +140,8 @@ describe("TraceStore", () => {
       remove: async (p) => {
         removed.push(p);
       },
+      read: async () => "",
+      write: async () => {},
     };
     let current = { keepDays: 30, maxBytes: 1000 };
     const store = new TraceStore(sink, "lab", () => current, () => "2026-08-22");
@@ -151,6 +164,8 @@ describe("TraceStore", () => {
       remove: async (p) => {
         removed.push(p);
       },
+      read: async () => "",
+      write: async () => {},
     };
     const store = new TraceStore(sink, "lab", limits, () => "2026-08-22");
     await store.rotate();
@@ -164,6 +179,8 @@ describe("TraceStore", () => {
         throw new Error("Verzeichnis nicht lesbar");
       },
       remove: async () => {},
+      read: async () => "",
+      write: async () => {},
     };
     const store = new TraceStore(sink, "lab", limits, () => "2026-08-22");
     await expect(store.rotate()).resolves.toBeUndefined();
@@ -187,4 +204,9 @@ describe("TraceStore — Schluessel aus dem Aufruf", () => {
     expect(text).not.toContain(schluessel);
     expect(text).toContain("••••");
   });
+});
+
+it("liefert beim Lesen einer unbekannten Datei einen leeren String", async () => {
+  const { sink } = fakeSink();
+  expect(await sink.read("lab/traces/gibtsnicht.jsonl")).toBe("");
 });

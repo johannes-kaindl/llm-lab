@@ -21,6 +21,15 @@ export function vaultSink(adapter: DataAdapter): TraceSink {
       }
       return files;
     },
+    async read(path) {
+      if (!(await adapter.exists(path))) return "";
+      return adapter.read(path);
+    },
+    async write(path, data) {
+      const dir = path.slice(0, path.lastIndexOf("/"));
+      if (!(await adapter.exists(dir))) await adapter.mkdir(dir);
+      await adapter.write(path, data);
+    },
     async remove(path) {
       await adapter.remove(path);
     },

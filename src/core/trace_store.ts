@@ -9,6 +9,12 @@ export interface TraceSink {
   append(path: string, data: string): Promise<void>;
   list(dir: string): Promise<TraceFile[]>;
   remove(path: string): Promise<void>;
+  /** Leerer String, wenn es die Datei nicht gibt — der erste Start ist kein Fehlerfall
+   *  (dieselbe Zusage wie `list`, das dort eine leere Liste liefert). */
+  read(path: string): Promise<string>;
+  /** Ersetzt den Inhalt vollstaendig. Nur fuer das Entfernen einzelner Zeilen —
+   *  regulaeres Schreiben laeuft ueber `append`. */
+  write(path: string, data: string): Promise<void>;
 }
 
 export interface WriteOptions {
