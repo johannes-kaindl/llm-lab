@@ -7,6 +7,11 @@ All notable changes to this project are documented here. The format follows
 ## [Unreleased]
 
 ### Added
+- **Bewertungs-Ansicht.** Ein Tab im Hauptbereich listet aufgezeichnete Aufrufe, zeigt Prompt
+  und Antwort in Lesebreite und nimmt ein Urteil per Tastatur entgegen (`j`/`k` blättern,
+  `g` gut, `b` schlecht, `Entf` löschen). Bewertetes wird redigiert nach `dataset.jsonl`
+  kopiert — der Trace verfällt mit der Rotation, der Datensatz überlebt sie. Jede Aktion ist
+  zusätzlich als Befehl erreichbar.
 - **`apiVersion` 4: `turnId` auf `LabLogInput`.** Klammert mehrere LLM-Aufrufe, die zu einer
   Nutzer-Handlung gehören (Agent-Loop mit Tool-Calls). Optional — ein Konsument, der nichts
   meldet, verhält sich unverändert.
