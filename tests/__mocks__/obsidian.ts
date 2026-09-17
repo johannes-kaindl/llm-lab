@@ -124,6 +124,7 @@ export class Setting {
   constructor(_containerEl: unknown) {}
   setName(): this { return this; }
   setDesc(): this { return this; }
+  setClass(_cls: string): this { return this; }
   addText(_cb?: (c: unknown) => void): this { return this; }
   addTextArea(_cb?: (c: unknown) => void): this { return this; }
   addButton(_cb?: (c: unknown) => void): this { return this; }

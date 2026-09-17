@@ -268,4 +268,26 @@ describe("TraceStore — Serialisierung", () => {
     const store = new TraceStore(sink, "lab", limits, () => "2026-09-03");
     await expect(store.removeRecord("2026-09-03", "alt")).resolves.toBe(false);
   });
+
+  // Befund M7: ein Record, dessen `ts` noch den Vortag traegt, aber wegen fire-and-forget
+  // erst NACH Mitternacht angehaengt wurde, steht in der Datei des FOLGETAGS — `day` kommt
+  // aus `ts` (TraceReader.dayOf), nicht aus dem tatsaechlichen Schreibzeitpunkt.
+  it("findet einen Record auch in der Folgetagsdatei (Mitternachts-Kante)", async () => {
+    const { sink, files } = fakeSink({
+      "lab/traces/2026-09-03.jsonl": "",
+      "lab/traces/2026-09-04.jsonl": JSON.stringify({ id: "spaet" }) + "\n" + JSON.stringify({ id: "andere" }) + "\n",
+    });
+    const store = new TraceStore(sink, "lab", limits, () => "2026-09-04");
+    await expect(store.removeRecord("2026-09-03", "spaet")).resolves.toBe(true);
+    expect(files.get("lab/traces/2026-09-04.jsonl")!.trim().split("\n").map((l) => JSON.parse(l).id))
+      .toEqual(["andere"]);
+  });
+
+  it("meldet false, wenn die id weder im genannten Tag noch im Folgetag steht (statt still true)", async () => {
+    const { sink } = fakeSink({
+      "lab/traces/2026-09-03.jsonl": JSON.stringify({ id: "andere" }) + "\n",
+    });
+    const store = new TraceStore(sink, "lab", limits, () => "2026-09-03");
+    await expect(store.removeRecord("2026-09-03", "gibtsnicht")).resolves.toBe(false);
+  });
 });

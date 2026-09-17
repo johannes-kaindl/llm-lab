@@ -75,14 +75,21 @@ export class RatePanel implements HubPanel<"rate"> {
 
     if (this.sichtbar.length === 0) {
       this.root.createDiv({ cls: "llm-lab-empty", text: t("rate.empty") });
-      return;
+    } else {
+      const liste = this.root.createDiv({ cls: "llm-lab-liste" });
+      this.sichtbar.forEach((r, i) => this.renderZeile(liste, r, i));
+      this.renderDetail(this.sichtbar[this.auswahl]);
+      this.renderAktionen(this.sichtbar[this.auswahl]);
+      this.renderFuss();
     }
 
-    const liste = this.root.createDiv({ cls: "llm-lab-liste" });
-    this.sichtbar.forEach((r, i) => this.renderZeile(liste, r, i));
-    this.renderDetail(this.sichtbar[this.auswahl]);
-    this.renderAktionen(this.sichtbar[this.auswahl]);
-    this.renderFuss();
+    // Befund M2: root.empty() reisst den Fokus auf <body>, wenn er vorher auf einem
+    // Knopf/Zeile lag — j/k/g/b erreichen den keydown-Listener danach nicht mehr. Der
+    // Container selbst ist fokussierbar (tabindex="-1" in mount()). Gilt fuer BEIDE
+    // Zweige — ein fruehes `return` im Empty-Zweig haette genau diesen Fall uebersprungen
+    // (im eigenen Test aufgefallen: nach dem Bewerten des letzten unbewerteten Records
+    // wird die Liste leer).
+    this.root.focus();
   }
 
   private renderFilter(): void {
@@ -121,7 +128,10 @@ export class RatePanel implements HubPanel<"rate"> {
   }
 
   private renderZeile(liste: HTMLElement, r: TraceRecord, i: number): void {
-    const z = liste.createDiv({ cls: "llm-lab-zeile" });
+    // data-id traegt keine sichtbare Bedeutung — sie erlaubt Automatisierung (GUI-Smoke,
+    // Befund M5), eine Zeile ueber ihre id statt ueber ihre Position anzusteuern. Position
+    // ist bei gleichem `ts` (Millisekunden-Kollision) kein stabiler Bezugspunkt.
+    const z = liste.createDiv({ cls: "llm-lab-zeile", attr: { "data-id": r.id } });
     z.toggleClass("is-active", i === this.auswahl);
     z.onclick = () => { this.auswahl = i; this.render(); };
 
@@ -254,6 +264,13 @@ export class RatePanel implements HubPanel<"rate"> {
   }
 
   private onKey(ev: KeyboardEvent): void {
+    // Befund M3: ohne diese Wache faengt der Listener (am Container, alle Kind-Events
+    // bubblen hoch) auch Tasten ab, die einem fokussierten Filter-Control gehoeren —
+    // Enter auf einem Filter-Knopf oeffnete das Vertiefungs-Modal statt den Filter
+    // umzuschalten, j/k im <select> ersetzten dessen Typeahead-Suche.
+    const ziel = ev.target as { tagName?: string } | null;
+    if (ziel?.tagName && ["INPUT", "SELECT", "BUTTON", "TEXTAREA"].includes(ziel.tagName)) return;
+
     const r = this.sichtbar[this.auswahl];
     if (!r) return;
     const tasten: Record<string, () => void> = {

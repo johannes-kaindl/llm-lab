@@ -30,7 +30,14 @@ export class RateDetailsModal extends Modal {
       .setName(t("details.note.name"))
       .addText((c) => c.onChange((v) => { this.note = v; }));
 
+    // Volle Modalbreite statt der schmalen Setting-Control-Spalte: "Bessere Antwort" ist
+    // der wertvollste Teil des Datensatzes (SFT-Korrektur) und braucht Platz fuer
+    // Mehrzeiler. `setClass` stapelt Name/Desc ueber den Control-Block (styles.css), die
+    // Zeile bleibt trotzdem eine native `Setting` (UI-STANDARD §8: kein Baustein fuer
+    // diese Form katalogisiert, die naechste verwandte Grammatik ist die vertikale
+    // Listen-Zeile — Name/Desc/Inhalt untereinander statt nebeneinander).
     new Setting(this.contentEl)
+      .setClass("llm-lab-correction-setting")
       .setName(t("details.correction.name"))
       .setDesc(t("details.correction.desc"))
       .addTextArea((c) => {

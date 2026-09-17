@@ -80,6 +80,10 @@ import { join } from "node:path";
 
 import { Cdp, attachTo, pollUntil, releaseAlwaysOnTop, requireVisible } from "../../tools/obsidian-cdp/cdp.js";
 import { buildVault, requireEigenerBuild, stagingVaultDir } from "../../tools/obsidian-cdp/vault.js";
+// Befund I5: die apiVersion war dreimal veraltet, weil der Treiber sie als eigene Zahl
+// mitfuehrte. Ein Lesezugriff auf die Quelle statt einer Kopie schliesst die Luecke
+// strukturell — es gibt nichts mehr, das beim naechsten Bump vergessen werden kann.
+import { LLM_LAB_API_VERSION } from "../src/plugin_api.js";
 
 const PLUGIN_ID = "llm-lab";
 const REPO_NAME = "llm-lab";
@@ -284,12 +288,11 @@ async function main(): Promise<void> {
         messages: [{ role: "user", content: "ping" }], content: "pong", latencyMs: 1 });
       return { apiVersion: api.apiVersion, recording: st.recording, logTyp: typeof api.log, ergebnisTyp: typeof r };
     `);
-    // Der Treiber ist selbst ein Konsument dieses Vertrags — genau wie vault-rags
-    // `lab_client.ts` traegt er die apiVersion als eigene Kopie und muss bei jedem Bump von
-    // `LLM_LAB_API_VERSION` (src/plugin_api.ts) manuell nachziehen. Stand: 4 (seit dem Bump vom
-    // 2026-09-16, "feat(api): turnId aufnehmen — apiVersion 4"). Vorher 3 (2026-08-30).
+    // Der Treiber ist selbst ein Konsument dieses Vertrags — anders als vault-rags
+    // `lab_client.ts` (fremdes Repo, kann nur eine Kopie fuehren) liest er die apiVersion
+    // hier direkt aus `src/plugin_api.ts` (Befund I5: war dreimal veraltet, s. Import oben).
     record("Anbieter-Vertrag haengt am Plugin-Objekt (apiVersion, status, log)",
-      vertrag.apiVersion === 4 && vertrag.recording === true && vertrag.logTyp === "function",
+      vertrag.apiVersion === LLM_LAB_API_VERSION && vertrag.recording === true && vertrag.logTyp === "function",
       `apiVersion ${String(vertrag.apiVersion)} · recording ${String(vertrag.recording)}`);
     record("log() gibt die id SYNCHRON zurueck (kein Promise)",
       vertrag.ergebnisTyp === "string",
@@ -809,6 +812,30 @@ async function main(): Promise<void> {
       leafAnzahl === 1,
       `getLeavesOfType("llm-lab-view").length = ${String(leafAnzahl)}`);
 
+    // --- 16b. Zwei Leaves derselben View teilen KEINE RatePanel-Instanz (Befund I2) ---
+    // Layout-Wiederherstellung, Split und "in neues Fenster verschieben" erzeugen mehrere
+    // Leaves des Typs. Eine geteilte Panel-Instanz haette ihren Container beim zweiten
+    // mount() ueberschrieben (totes DOM im ersten Fenster), und ein onClose() der zweiten
+    // Leaf haette ueber die geteilte Instanz auch die erste geleert (root.empty()).
+    const zweiLeaves = await cdp.evaluate<{ beideGefuellt: boolean; ersteNachSchliessenNochDa: boolean }>(`
+      const erste = app.workspace.getLeavesOfType("llm-lab-view")[0];
+      const zweite = app.workspace.createLeafBySplit(erste, "vertical");
+      await zweite.setViewState({ type: "llm-lab-view", active: true });
+      await new Promise(r => setTimeout(r, 300));
+      const gefuellt = (l) => {
+        const rate = l.view.containerEl.querySelector(".llm-lab-rate");
+        return Boolean(rate) && rate.children.length > 0;
+      };
+      const beideGefuellt = gefuellt(erste) && gefuellt(zweite);
+      await zweite.detach();
+      await new Promise(r => setTimeout(r, 200));
+      const ersteNachSchliessenNochDa = gefuellt(erste);
+      return { beideGefuellt, ersteNachSchliessenNochDa };
+    `);
+    record("Zwei Leaves derselben View teilen keine RatePanel-Instanz (Split + Schliessen)",
+      zweiLeaves.beideGefuellt && zweiLeaves.ersteNachSchliessenNochDa,
+      `beide gefuellt: ${String(zweiLeaves.beideGefuellt)} · erste nach Schliessen der zweiten noch da: ${String(zweiLeaves.ersteNachSchliessenNochDa)}`);
+
     // --- 17. View liegt im Hauptbereich, nicht in der Seitenleiste -----------
     // Design-Entscheidung 2026-09-02 §2: eine 300px-Sidebar macht aus dem Vergleich
     // System-Prompt/Antwort eine Lese-Roehre. Gemessen am Wurzelcontainer der Leaf,
@@ -900,9 +927,16 @@ async function main(): Promise<void> {
     const loeschId = await cdp.evaluate<string>(logRuf("smoke-delete"));
     await cdp.evaluate(refreshAktivenTab);
     await pollUntil<boolean>(cdp, `return document.querySelector(".llm-lab-zeile") ? true : null;`, 10_000, 300);
-    // Sortierung ist ts absteigend (trace_reader.ts): der zuletzt geschriebene Record
-    // ("smoke-delete") steht als erste Zeile oben und wird per Klick ausgewaehlt.
-    await cdp.evaluate(`document.querySelector(".llm-lab-zeile").click(); return true;`);
+    // Befund M5: NICHT per Position (erste Zeile) ansteuern — landen smoke-keep und
+    // smoke-delete in derselben Millisekunde, ist die Sortierreihenfolge (ts absteigend)
+    // kein verlaesslicher Tiebreaker mehr, und der Punkt waere bei intaktem Code zufaellig
+    // rot. `data-id` (rate_panel.ts) macht die Auswahl von der Zeitaufloesung unabhaengig.
+    await cdp.evaluate(`
+      const z = document.querySelector(${JSON.stringify(`.llm-lab-zeile[data-id="${loeschId}"]`)});
+      if (!z) throw new Error("Zeile fuer loeschId nicht gefunden");
+      z.click();
+      return true;
+    `);
     await cdp.evaluate(`app.commands.executeCommandById(${JSON.stringify(PLUGIN_ID + ":delete-record")}); return true;`);
     // Loeschen laeuft ueber confirmAction() (Bestaetigungs-Modal, UI-STANDARD verbindlich) —
     // der destruktive Knopf im modal-button-container wird angeklickt, nicht die Taste.

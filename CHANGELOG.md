@@ -6,6 +6,34 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Fixed
+- **Zwei Leaves derselben Bewertungs-Ansicht teilten sich eine `RatePanel`-Instanz** (I2).
+  Layout-Wiederherstellung, Split oder „in neues Fenster verschieben" ließen die zweite
+  Leaf den DOM-Container der ersten überschreiben; ein `onClose()` konnte dadurch die
+  jeweils andere Leaf leeren. Jede Leaf bekommt jetzt ihre eigene Instanz (Factory statt
+  geteiltem Feld in `main.ts`).
+- **Fokus ging nach jedem Klick verloren** (M2) — `render()` fokussiert den Container
+  jetzt wieder, in beiden Zweigen (Liste UND Empty-State).
+- **`Enter`/`j`/`k` in einem Filter-Control wurden vom Tastatur-Handler abgefangen** (M3) —
+  `onKey` überspringt jetzt Ereignisse, deren Ziel ein `INPUT`/`SELECT`/`BUTTON`/`TEXTAREA`
+  ist.
+- **`LabView.getState()` verwarf, was `ItemView` selbst persistieren würde** (M4).
+- **Löschen kurz vor Mitternacht konnte fälschlich Erfolg melden** (M7) — ein Record, der
+  wegen fire-and-forget erst nach Mitternacht in die Folgetagsdatei geschrieben wurde,
+  wird jetzt auch dort gefunden; ohne Treffer meldet `removeRecord` jetzt `false` statt
+  stillschweigend `true`.
+- **`vaultSink` leitete ein Verzeichnis ohne Schrägstrich falsch ab** (M10) — heute
+  unerreichbar, die Annahme steht jetzt explizit in einer eigenen Funktion.
+
+### Changed
+- **„Bessere Antwort" im Vertiefungs-Modal nutzt die volle Modalbreite** statt der
+  schmalen Setting-Control-Spalte.
+- **GUI-Smoke liest `apiVersion` jetzt direkt aus `src/plugin_api.ts`** statt sie als Zahl
+  mitzuführen (I5) — war dreimal in Folge veraltet. Prüfpunkt 22 (Löschen) wählt seine
+  Zeile über `data-id` statt über die Position, damit eine Millisekunden-Kollision
+  zwischen zwei Testrecords den Punkt nicht zufällig rot macht (M5). Neuer Prüfpunkt 16b
+  öffnet zwei Leaves und schließt eine davon — Regressionsschutz für I2.
+
 ## [0.5.0] — 2026-09-16
 
 ### Added

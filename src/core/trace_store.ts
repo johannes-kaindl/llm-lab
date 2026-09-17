@@ -3,6 +3,14 @@ import { redactRecordSecrets } from "./redact_secrets";
 import { redactPii } from "./redact_pii";
 import { planRotation, type RotationLimits, type TraceFile } from "./rotation";
 
+/** UTC-Folgetag als "YYYY-MM-DD" — Grundlage fuer den Mitternachts-Fallback in
+ *  `removeRecord` (Befund M7). Reine Datumsarithmetik, kein `Date.now()`. */
+function naechsterTag(tag: string): string {
+  const d = new Date(`${tag}T00:00:00.000Z`);
+  d.setUTCDate(d.getUTCDate() + 1);
+  return d.toISOString().slice(0, 10);
+}
+
 /** Minimaler Datei-Port. Obsidians `vault.adapter` erfuellt ihn mit duenner Anpassung.
  *  Injiziert, damit der Store ohne Plattform-Laufzeit testbar ist. */
 export interface TraceSink {
@@ -116,31 +124,48 @@ export class TraceStore {
    *  Aufruf wirft weiterhin nie), aber ein Aufrufer wie `RatePanelHost.remove` bekommt
    *  jetzt einen echten Rueckkanal statt eines Erfolgs, der nur behauptet wird (Befund I4).
    *  `writeNow`/`write` bleiben bewusst bei `void` — ihre fire-and-forget-Zusage ist an
-   *  anderer Stelle load-bearing (s. Kommentar dort) und wird hier nicht angetastet. */
+   *  anderer Stelle load-bearing (s. Kommentar dort) und wird hier nicht angetastet.
+   *
+   *  Befund M7 (Mitternachts-Kante): `day` kommt aus `record.ts` (Aufrufzeitpunkt), die
+   *  Datei aber aus `this.today()` zum tatsaechlichen SCHREIBzeitpunkt — bei fire-and-forget
+   *  koennen die beiden auseinanderfallen, wenn ein Record kurz vor Mitternacht geloggt und
+   *  erst danach angehaengt wird. Ohne Fallback wuerde die Vortagsdatei unveraendert
+   *  zurueckgeschrieben (kein Treffer, aber auch kein Fehler) und `ok` faelschlich `true`
+   *  bleiben, obwohl der Record unangetastet in der Folgetagsdatei steht. Der Suchraum ist
+   *  bewusst auf `day` und `day+1` begrenzt: `today()` liegt nie VOR dem Aufrufzeitpunkt. */
   async removeRecord(day: string, id: string): Promise<boolean> {
-    let ok = true;
+    let ok = false;
     await this.serialize(async () => {
-      try {
-        const pfad = `${this.dir()}/${day}.jsonl`;
-        const roh = await this.sink.read(pfad);
-        if (roh === "") return;
-        const behalten = roh
-          .split("\n")
-          .filter((zeile) => {
-            if (zeile.trim() === "") return false;
-            try {
-              return (JSON.parse(zeile) as { id?: string }).id !== id;
-            } catch {
-              // Unparsbare Zeile stehen lassen: sie ist nicht der gesuchte Record,
-              // und stilles Wegwerfen waere genau der Datenverlust, den diese Kette
-              // verhindern soll.
-              return true;
-            }
-          });
-        await this.sink.write(pfad, behalten.length > 0 ? behalten.join("\n") + "\n" : "");
-      } catch (e) {
-        console.warn("LLM Lab: Record konnte nicht entfernt werden", e);
-        ok = false;
+      for (const kandidat of [day, naechsterTag(day)]) {
+        try {
+          const pfad = `${this.dir()}/${kandidat}.jsonl`;
+          const roh = await this.sink.read(pfad);
+          if (roh === "") continue;
+          let gefunden = false;
+          const behalten = roh
+            .split("\n")
+            .filter((zeile) => {
+              if (zeile.trim() === "") return false;
+              try {
+                const treffer = (JSON.parse(zeile) as { id?: string }).id === id;
+                if (treffer) gefunden = true;
+                return !treffer;
+              } catch {
+                // Unparsbare Zeile stehen lassen: sie ist nicht der gesuchte Record,
+                // und stilles Wegwerfen waere genau der Datenverlust, den diese Kette
+                // verhindern soll.
+                return true;
+              }
+            });
+          if (!gefunden) continue;
+          await this.sink.write(pfad, behalten.length > 0 ? behalten.join("\n") + "\n" : "");
+          ok = true;
+          break;
+        } catch (e) {
+          console.warn("LLM Lab: Record konnte nicht entfernt werden", e);
+          ok = false;
+          break;
+        }
       }
     });
     return ok;

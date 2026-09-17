@@ -91,3 +91,11 @@
 .llm-lab-fuss { color: var(--text-muted); font-size: var(--font-ui-smaller); }
 
 .llm-lab-empty { color: var(--text-muted); padding: var(--size-4-4); text-align: center; }
+
+/* RateDetailsModal, "Bessere Antwort": volle Modalbreite statt der schmalen
+   Setting-Control-Spalte (UI-STANDARD-Anmerkung 2026-09-16). display: block hebt Obsidians
+   Standard-Zeilenlayout (.setting-item ist sonst flex row, Info und Control nebeneinander)
+   auf, Info und Control stapeln sich dadurch als normale Blockkinder. */
+.llm-lab-correction-setting { display: block; }
+.llm-lab-correction-setting .setting-item-control { width: 100%; margin-top: var(--size-4-2); }
+.llm-lab-correction-setting .setting-item-control textarea { width: 100%; }

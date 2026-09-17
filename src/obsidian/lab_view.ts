@@ -21,6 +21,12 @@ export class LabView extends ItemView {
   getDisplayText(): string { return t("view.title"); }
   getIcon(): string { return "flask-conical"; }
 
+  /** Fuer die Commands aus main.ts, die auf dem Panel der AKTIVEN Leaf arbeiten sollen
+   *  (Befund I2: `panels` gehoert dieser Leaf allein, keine geteilte Instanz mehr). */
+  getPanel<Id extends LabTabId>(id: Id): HubPanel<LabTabId> | undefined {
+    return this.panels.find((p) => p.id === id);
+  }
+
   async onOpen(): Promise<void> {
     this.ctrl = buildHubInto(this.contentEl, this.panels, this.navState);
   }
@@ -31,9 +37,11 @@ export class LabView extends ItemView {
     this.contentEl.empty();
   }
 
-  /** Der aktive Tab ueberlebt einen Neustart ueber die Layout-Persistenz. */
+  /** Der aktive Tab ueberlebt einen Neustart ueber die Layout-Persistenz. Befund M4:
+   *  `super.getState()` mitfuehren statt zu verwerfen — was die Basisklasse selbst
+   *  persistieren will (heute nichts Bekanntes, potenziell kuenftige Obsidian-Felder). */
   getState(): Record<string, unknown> {
-    return { tab: this.ctrl?.currentTab() ?? this.navState };
+    return { ...super.getState(), tab: this.ctrl?.currentTab() ?? this.navState };
   }
 
   async setState(state: unknown, result: ViewStateResult): Promise<void> {

@@ -7,7 +7,7 @@ import { createLlmLabApi, type LlmLabApi } from "./plugin_api";
 import { vaultSink } from "./obsidian/vault_sink";
 import { LabSettingTab } from "./obsidian/settings_tab";
 import { LabView, VIEW_TYPE_LAB } from "./obsidian/lab_view";
-import { RatePanel } from "./obsidian/panels/rate_panel";
+import { RatePanel, type RatePanelHost } from "./obsidian/panels/rate_panel";
 import { DatasetStore } from "./core/dataset_store";
 import { TraceReader } from "./core/trace_reader";
 import { buildDatasetEntry, type RateInput } from "./core/dataset";
@@ -24,7 +24,6 @@ export default class LlmLabPlugin extends Plugin {
   private store!: TraceStore;
   private dataset!: DatasetStore;
   private reader!: TraceReader;
-  private ratePanel?: RatePanel;
 
   async onload(): Promise<void> {
     setLang(pickLang(getLanguage()));
@@ -74,7 +73,30 @@ export default class LlmLabPlugin extends Plugin {
 
     this.addSettingTab(new LabSettingTab(this.app, this));
 
-    this.ratePanel = new RatePanel({
+    // Factory statt geteilter Instanz (Befund I2): registerView() wird von Obsidian fuer
+    // JEDE Leaf des Typs neu aufgerufen (Layout-Wiederherstellung, Split, "in neues Fenster
+    // verschieben" erzeugen mehrere Leaves desselben View-Typs). Eine einzelne, in onload()
+    // gebaute RatePanel-Instanz haette ihren Container (`private root!`) beim zweiten
+    // mount() ueberschrieben — das erste Fenster bliebe mit totem DOM stehen, und ein
+    // onClose() dort haette ueber die geteilte Instanz auch das zweite geleert.
+    this.registerView(
+      VIEW_TYPE_LAB,
+      (leaf: WorkspaceLeaf) => new LabView(leaf, [new RatePanel(this.ratePanelHost())]),
+    );
+
+    this.addRibbonIcon("flask-conical", t("command.openView"), () => void this.openView());
+
+    this.addCommand({ id: "open-view", name: t("command.openView"), callback: () => void this.openView() });
+    this.addCommand({ id: "rate-up", name: t("command.rateUp"), callback: () => this.activeRatePanel()?.rateCurrent("up") });
+    this.addCommand({ id: "rate-down", name: t("command.rateDown"), callback: () => this.activeRatePanel()?.rateCurrent("down") });
+    this.addCommand({ id: "delete-record", name: t("command.deleteRecord"), callback: () => this.activeRatePanel()?.deleteCurrent() });
+  }
+
+  /** Host-Vertrag fuer eine frisch gebaute RatePanel-Instanz — Store/Dataset/Reader sind
+   *  geteilte, zustandslose Ports (das ist unproblematisch), nur der DOM-Container einer
+   *  RatePanel-Instanz darf nie geteilt werden (Befund I2). */
+  private ratePanelHost(): RatePanelHost {
+    return {
       app: this.app,
       reader: () => this.reader,
       ratedIds: () => this.dataset.ratedIds(),
@@ -87,19 +109,14 @@ export default class LlmLabPlugin extends Plugin {
       },
       remove: (trace: TraceRecord) =>
         this.store.removeRecord(TraceReader.dayOf(trace), trace.id),
-    });
+    };
+  }
 
-    this.registerView(
-      VIEW_TYPE_LAB,
-      (leaf: WorkspaceLeaf) => new LabView(leaf, [this.ratePanel!]),
-    );
-
-    this.addRibbonIcon("flask-conical", t("command.openView"), () => void this.openView());
-
-    this.addCommand({ id: "open-view", name: t("command.openView"), callback: () => void this.openView() });
-    this.addCommand({ id: "rate-up", name: t("command.rateUp"), callback: () => this.ratePanel?.rateCurrent("up") });
-    this.addCommand({ id: "rate-down", name: t("command.rateDown"), callback: () => this.ratePanel?.rateCurrent("down") });
-    this.addCommand({ id: "delete-record", name: t("command.deleteRecord"), callback: () => this.ratePanel?.deleteCurrent() });
+  /** Commands sind global (Befehlspalette/Hotkeys), gehoeren aber der Leaf, die gerade
+   *  aktiv ist — nicht mehr einer einzigen App-weiten Instanz. */
+  private activeRatePanel(): RatePanel | undefined {
+    const view = this.app.workspace.getActiveViewOfType(LabView);
+    return view?.getPanel("rate") as RatePanel | undefined;
   }
 
   /** Zustand nie nur ueber Farbe: Icon UND Text (WCAG 1.4.1). */

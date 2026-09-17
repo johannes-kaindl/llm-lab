@@ -72,6 +72,83 @@ describe("RatePanel — Durchratter-Rhythmus (Befund I1)", () => {
   });
 });
 
+describe("RatePanel — Fokus (Befund M2)", () => {
+  it("fokussiert den Container nach jedem Neuzeichnen, nicht nur beim ersten Mount", async () => {
+    const rows = [rec({ id: "A" })];
+    const host = buildHost({
+      reader: () => ({ all: async () => ({ rows, kaputt: 0 }) }) as unknown as TraceReader,
+    });
+
+    const container = makeFakeEl();
+    const panel = new RatePanel(host);
+    panel.mount(container);
+    const root = container.children[0];
+    const fokus = vi.fn();
+    root.focus = fokus;
+
+    await (panel as unknown as { reload(): Promise<void> }).reload();
+    expect(fokus).toHaveBeenCalled();
+
+    fokus.mockClear();
+    panel.rateCurrent("up");
+    await flush();
+    // rateCurrent -> bewerte() -> weiter() -> render() -> root.empty() + root.focus():
+    // ohne den Fix waere der Fokus nach diesem Neuzeichnen auf <body> gelandet.
+    expect(fokus).toHaveBeenCalled();
+  });
+});
+
+describe("RatePanel — Filter-Controls behalten ihre Tasten (Befund M3)", () => {
+  it("ignoriert Tastendruecke, deren Ziel ein Filter-Control ist", async () => {
+    const rows = [rec({ id: "A" }), rec({ id: "B", ts: "2026-09-02T10:00:00.000Z" })];
+    const geloescht: string[] = [];
+    const host = buildHost({
+      reader: () => ({ all: async () => ({ rows, kaputt: 0 }) }) as unknown as TraceReader,
+      remove: async (t) => { geloescht.push(t.id); return true; },
+    });
+
+    const panel = new RatePanel(host);
+    panel.mount(makeFakeEl());
+    await (panel as unknown as { reload(): Promise<void> }).reload();
+
+    const onKey = (panel as unknown as { onKey(ev: unknown): void }).onKey.bind(panel);
+    for (const tag of ["INPUT", "SELECT", "BUTTON", "TEXTAREA"]) {
+      onKey({ key: "Delete", target: { tagName: tag }, preventDefault: vi.fn() });
+    }
+    await flush();
+    expect(geloescht).toEqual([]);
+
+    // Gegenprobe: dieselbe Taste OHNE Filter-Ziel wirkt weiterhin.
+    onKey({ key: "Delete", target: { tagName: "DIV" }, preventDefault: vi.fn() });
+    await flush();
+    expect(geloescht).toEqual(["A"]);
+  });
+});
+
+describe("RatePanel — zwei Instanzen teilen kein DOM (Befund I2)", () => {
+  it("laesst eine Instanz unberuehrt, wenn eine andere destroy() aufruft", async () => {
+    const rows = [rec({ id: "A" })];
+    const hostA = buildHost({ reader: () => ({ all: async () => ({ rows, kaputt: 0 }) }) as unknown as TraceReader });
+    const hostB = buildHost({ reader: () => ({ all: async () => ({ rows, kaputt: 0 }) }) as unknown as TraceReader });
+
+    // Zwei durch eine Factory gebaute Instanzen — genau das Muster aus main.ts nach dem
+    // Fix (eine Instanz je Leaf statt einer geteilten). Vorher haette EINE Instanz beide
+    // Container gemountet bekommen, und destroy() der zweiten Leaf haette die erste geleert.
+    const containerA = makeFakeEl();
+    const containerB = makeFakeEl();
+    const panelA = new RatePanel(hostA);
+    const panelB = new RatePanel(hostB);
+    panelA.mount(containerA);
+    panelB.mount(containerB);
+    await (panelA as unknown as { reload(): Promise<void> }).reload();
+    await (panelB as unknown as { reload(): Promise<void> }).reload();
+
+    panelB.destroy();
+
+    expect(containerA.children[0].children.length).toBeGreaterThan(0);
+  });
+});
+
 describe("RatePanel — Fehlerrueckmeldung (Befund I4)", () => {
   beforeEach(() => {
     resetNoticeLog();
