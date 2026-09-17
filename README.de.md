@@ -8,6 +8,8 @@
 
 > Englisch ist die kanonische Fassung: [README.md](README.md).
 
+<p align="center"><img src="https://git.jkaindl.de/jkaindl/llm-lab/raw/branch/main/docs/images/hero.png" width="820" alt="Der Bewerten-Tab gefüllt mit vier Aufzeichnungen, gefiltert auf Nur unbewertete, eine Zeile ausgewählt mit vollem Prompt und Antwort darunter, und der Aktionsleiste Gut/Schlecht/Tags, Notiz, Korrektur hinzufügen/Aufzeichnung löschen"></p>
+
 ## Was es tut
 
 Mehrere Obsidian-Plugins in diesem Workspace sprechen mit lokalen LLMs (ein RAG-Assistent,
@@ -170,7 +172,15 @@ Dinge, die du je mit LLM Lab tust, diese:
 
 Das Plugin auszuschalten — oder zu entfernen — beendet die Aufzeichnung in diesem Vault sofort.
 
+<p align="center">
+<a href="https://git.jkaindl.de/jkaindl/llm-lab/raw/branch/main/docs/images/rate-empty.png"><img src="https://git.jkaindl.de/jkaindl/llm-lab/raw/branch/main/docs/images/thumbs/rate-empty.png" width="380" alt="Der Bewerten-Tab, bevor irgendeine Aufzeichnung angekommen ist: die Filterleiste über einer Leerzustands-Meldung, No recordings yet — LLM Lab only records what another plugin sends it, nothing has arrived so far"></a>
+<a href="https://git.jkaindl.de/jkaindl/llm-lab/raw/branch/main/docs/images/rate-details.png"><img src="https://git.jkaindl.de/jkaindl/llm-lab/raw/branch/main/docs/images/thumbs/rate-details.png" width="380" alt="Das Vertiefungs-Modal Add detail to this rating offen über einer Aufzeichnung: Tags, Note und die volle-Modalbreite-Textarea Better answer"></a>
+</p>
+<p align="center"><sub>Für die volle Größe auf eine Vorschau klicken — links: bevor irgendetwas aufgezeichnet wurde; rechts: Tags, eine Notiz oder eine Korrektur zu einer Bewertung hinzufügen</sub></p>
+
 ## Konfiguration
+
+<img src="https://git.jkaindl.de/jkaindl/llm-lab/raw/branch/main/docs/images/settings.png" width="820" alt="Der vollständige LLM-Lab-Einstellungen-Tab: LLM-Aufrufe mitschreiben, Traces aufbewahren, Maximale Trace-Größe, Diese Features nie mitschreiben, Notizen aus diesen Ordnern nie mitschreiben, Strenger Ordner-Ausschluss, Personenbezogenes auch im rohen Trace maskieren, Zusätzliche Begriffe maskieren, sowie die drei inhaltlich verbindlichen Hinweiszeilen Where the data is stored, What masking does and does not catch, What the folder filter can and cannot see">
 
 | Einstellung | Standard | Wirkung |
 |---|---|---|

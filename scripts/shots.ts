@@ -159,7 +159,7 @@ async function zustandZuruecksetzen(cdp: Cdp, base: string): Promise<void> {
   `, 15_000, 500);
 }
 
-async function seedRecords(cdp: Cdp): Promise<void> {
+async function seedRecords(cdp: Cdp, base: string): Promise<void> {
   for (const r of SEED_RECORDS) {
     await cdp.evaluate(`
       return app.plugins.plugins[${JSON.stringify(PLUGIN_ID)}].api.log(${JSON.stringify({
@@ -168,11 +168,39 @@ async function seedRecords(cdp: Cdp): Promise<void> {
       })});
     `);
   }
+  // log() ist fire-and-forget (AGENTS.md „Anbieter, nicht Konsument") — die id kommt
+  // synchron, der Schreibvorgang laeuft danach asynchron. Ohne diese Wartestufe war das
+  // Oeffnen der Bewerten-Ansicht direkt danach im Volllauf beobachtbar (nicht isoliert)
+  // manchmal schneller als die vier Schreibvorgaenge auf der Platte — die Ansicht las
+  // dann eine noch unvollstaendige Trace-Datei und die Zeilenzahl blieb unter dem
+  // Erwartungswert, bis `rateTabBereit` seine Frist ausschoepfte.
+  await pollUntil<boolean>(cdp, `
+    const base = ${JSON.stringify(base)};
+    const adapter = app.vault.adapter;
+    if (!(await adapter.exists(base + "/traces"))) return false;
+    const liste = await adapter.list(base + "/traces");
+    let zeilen = 0;
+    for (const f of liste.files) {
+      const inhalt = await adapter.read(f);
+      zeilen += inhalt.split("\\n").filter((z) => z.trim().length > 0).length;
+    }
+    return zeilen >= ${SEED_RECORDS.length};
+  `, 8_000, 200);
 }
 
-/** Rate-Tab oeffnen (Ribbon-Aequivalent per Command) und auf die gefuellte Liste warten. */
+/** Rate-Tab oeffnen (Ribbon-Aequivalent per Command) und auf die gefuellte Liste warten.
+ *  Schliesst eine vorhandene Lab-Leaf zuerst: der Command aktiviert nur eine bestehende
+ *  (`revealLeaf`, `main.ts`), ohne den Panel-Zustand neu zu laden — ein zwischen zwei
+ *  Aufnahmen geseedeter Record bliebe sonst unsichtbar, weil `RatePanel.reload()` nur bei
+ *  `onShow()` des frisch geoeffneten Views laeuft, nicht bei jedem Aufruf des Commands. */
 async function rateTabBereit(cdp: Cdp, erwarteteZeilen: number): Promise<boolean> {
   await cdp.evaluate(`
+    // Nicht detach(): ohne Blatt bleibt keine Tab-Gruppe uebrig, an der
+    // "main.ts::openView" (getLeaf(true)) neu splitten koennte ("No tab group found").
+    // Der View-Typ wird stattdessen weggenommen, das Blatt selbst bleibt stehen.
+    for (const leaf of app.workspace.getLeavesOfType("llm-lab-view")) {
+      await leaf.setViewState({ type: "empty" });
+    }
     await app.commands.executeCommandById(${JSON.stringify(`${PLUGIN_ID}:open-view`)});
     return true;
   `);
@@ -210,11 +238,13 @@ const SHOTS: Shot[] = [
   {
     name: "hero.png",
     klasse: "hero",
-    async run(cdp) {
-      await seedRecords(cdp);
+    async run(cdp, base) {
+      await seedRecords(cdp, base);
       if (!(await rateTabBereit(cdp, SEED_RECORDS.length))) return null;
-      // Erste Zeile auswaehlen (das "Where the data lives"-Beispiel) — sie traegt das
-      // aussagekraeftigste Prompt/Antwort-Paar fuer das Detail darunter.
+      // Erste sichtbare Zeile auswaehlen — welcher der vier Beispieldatensaetze das ist,
+      // haengt von der Sortierung der Bewerten-Ansicht ab (neueste zuerst), nicht von der
+      // Seed-Reihenfolge oben. Der Vertrag verlangt nur "eine Zeile mit vollem
+      // Prompt/Antwort-Detail darunter", nicht ein bestimmtes Beispiel.
       const ausgewaehlt = await cdp.evaluate<boolean>(`
         const zeile = document.querySelector(".llm-lab-zeile");
         if (!zeile) return false;
@@ -222,7 +252,15 @@ const SHOTS: Shot[] = [
         return true;
       `);
       if (!ausgewaehlt) return null;
-      await new Promise((r) => setTimeout(r, 300));
+      // Gepollt statt fixer Pause: das Detail unter der Zeile rendert nach dem Klick
+      // asynchron, ein fester 300ms-Schlaf war im Volllauf (nicht isoliert) beobachtbar
+      // knapp zu kurz und lieferte einmalig ein 0x0-.llm-lab-rate.
+      await pollUntil<boolean>(cdp, `
+        const el = document.querySelector(".llm-lab-rate");
+        if (!el) return false;
+        const r = el.getBoundingClientRect();
+        return r.width > 1 && r.height > 1;
+      `, 5_000, 200);
       return boxOf(cdp, ".llm-lab-rate", PADDING);
     },
   },
@@ -248,7 +286,10 @@ const SHOTS: Shot[] = [
         return !!document.querySelector(".modal-container");
       `, 8_000, 300);
       if (!da) return null;
-      return boxOf(cdp, ".modal-content", PADDING);
+      // ".modal-content" allein liess den Titel ("Add detail to this rating") und den
+      // X-Knopf aussen vor — beide sitzen in ".modal-header", einem Geschwister von
+      // ".modal-content" unter ".modal". Der Vertrag verlangt das Modal MIT Titel.
+      return boxOf(cdp, ".modal", PADDING);
     },
   },
 ];
@@ -270,12 +311,54 @@ async function settingsBild(cdp: Cdp, port: number, opts: ShotOptions): Promise<
     await fenster.send("Page.bringToFront");
     await setWindowSize(fenster, 1100, 1500);
     await new Promise((r) => setTimeout(r, 600));
-    const box = await boxOf(fenster, ".vertical-tab-content", 0)
-      ?? await boxOf(fenster, ".modal-content", 0);
+    // `.vertical-tab-content` und seine Vorfahren (`.modal`,
+    // `.vertical-tab-content-container`) sind auf die Fensterhoehe gedeckelt
+    // (`overflow: hidden`, an `vh`-Prozentwerten der Modal-Groesse gemessen) — der
+    // Bildschirm laesst das OS-Fenster aber nur bis 949px hoch werden ("durch den
+    // Bildschirm begrenzt"), lange bevor der Inhalt (~1050px) hineinpasst.
+    // `captureBeyondViewport` in `capture()` faengt nur den VIEWPORT ab, kein
+    // `overflow: hidden` DARIN, und ein CSS-Override der drei Vorfahren aendert nichts
+    // an dieser Fenstergrenze (gemessen: identischer Abschnitt blieb schwarz).
+    // `Emulation.setDeviceMetricsOverride` laesst Chromium dagegen mit einem groesseren
+    // VIRTUELLEN Viewport layouten, ohne das echte OS-Fenster zu vergroessern — die
+    // `vh`-gebundenen `max-height`-Regeln rechnen dann gegen die virtuelle Hoehe und
+    // geben den vollen Inhalt frei. `deviceScaleFactor: 2` erhaelt die native Retina-
+    // Aufloesung dieses Fensters (gemessen `window.devicePixelRatio === 2` OHNE Override;
+    // ein erster Versuch mit `deviceScaleFactor: 1` hatte sie ungewollt AUF 1 gesenkt und
+    // eine zu schmale Datei erzeugt).
+    await fenster.send("Emulation.setDeviceMetricsOverride", {
+      width: 1100,
+      height: 2000,
+      deviceScaleFactor: 2,
+      mobile: false,
+    });
+    await new Promise((r) => setTimeout(r, 400));
+    // Nicht die Container-Box selbst vermessen: `.vertical-tab-content` waechst auf die
+    // ANGEBOTENE virtuelle Hoehe (2000px), auch wenn der Inhalt viel kuerzer ist — eine
+    // grosszuegige Override-Hoehe erzeugte deshalb ein Bild mit leerem schwarzen Rand
+    // unten (gemessen: 1200x2358 bei ~1050px tatsaechlichem Inhalt). Vermessen wird
+    // stattdessen die untere Kante des LETZTEN Kindelements, damit die Box genau am
+    // Inhalt endet, unabhaengig von der gewaehlten virtuellen Fensterhoehe.
+    const box = await fenster.evaluate<Rect | null>(`
+      const root = document.querySelector(".vertical-tab-content");
+      if (!root) return null;
+      const kinder = [...root.children].filter((k) => {
+        const r = k.getBoundingClientRect();
+        return r.width > 1 && r.height > 1;
+      });
+      if (!kinder.length) return null;
+      const rootR = root.getBoundingClientRect();
+      const letzte = kinder[kinder.length - 1].getBoundingClientRect();
+      return {
+        x: rootR.x, y: rootR.y, width: rootR.width,
+        height: Math.min(letzte.bottom - rootR.y, rootR.height),
+      };
+    `);
     if (!box) return "settings.png — kein Inhaltsbereich im Einstellungen-Fenster";
-    const png = await capture(fenster, box);
+    const png = await capture(fenster, box, 1);
     return await writeShot(fenster, "settings.png", png, { ...opts, thumb: false });
   } finally {
+    await fenster.send("Emulation.clearDeviceMetricsOverride", {}).catch(() => undefined);
     await fenster.evaluate("window.close(); return true;").catch(() => undefined);
     fenster.close();
   }
@@ -373,6 +456,13 @@ async function main(): Promise<void> {
   await setAppConfig(cdp, "readableLineLength", false);
   await setAppConfig(cdp, "showInlineTitle", false);
   await closeExtraLeaves(cdp);
+  // Ein Modal (z. B. von "rate-details.png") schliesst hier niemand aktiv — ein
+  // abgebrochener Nachzieh-Lauf (Strg-C, Fehler) liess eines im DOM stehen und ein
+  // Folgelauf nahm "hero.png" DAMIT auf statt der Bewerten-Ansicht dahinter.
+  await cdp.evaluate(`
+    for (const el of document.querySelectorAll(".modal-container")) el.remove();
+    return true;
+  `);
 
   let ok = 0;
   let fehlend = 0;

@@ -8,6 +8,8 @@
 
 > Deutsche Fassung: [README.de.md](README.de.md).
 
+<p align="center"><img src="https://git.jkaindl.de/jkaindl/llm-lab/raw/branch/main/docs/images/hero.png" width="820" alt="The Rate tab filled with four recordings, filtered to Unrated only, one row selected showing the full prompt and response below it, and the Good/Poor/Add tags, note, correction/Delete recording action bar"></p>
+
 ## What it does
 
 Several Obsidian plugins in this workspace talk to local LLMs (a RAG assistant, a chat
@@ -161,7 +163,15 @@ recording. Beyond that view, the only three things you ever do with LLM Lab are 
 
 Turning the plugin off — or removing it — stops all recording for that vault immediately.
 
+<p align="center">
+<a href="https://git.jkaindl.de/jkaindl/llm-lab/raw/branch/main/docs/images/rate-empty.png"><img src="https://git.jkaindl.de/jkaindl/llm-lab/raw/branch/main/docs/images/thumbs/rate-empty.png" width="380" alt="The Rate tab before any recording has arrived: the filter bar above an empty-state message, No recordings yet — LLM Lab only records what another plugin sends it, nothing has arrived so far"></a>
+<a href="https://git.jkaindl.de/jkaindl/llm-lab/raw/branch/main/docs/images/rate-details.png"><img src="https://git.jkaindl.de/jkaindl/llm-lab/raw/branch/main/docs/images/thumbs/rate-details.png" width="380" alt="The Add detail to this rating modal open over a recording: Tags, Note, and the full-modal-width Better answer textarea"></a>
+</p>
+<p align="center"><sub>Click either preview for full size — left: before anything has been recorded; right: adding tags, a note or a correction to a rating</sub></p>
+
 ## Configuration
+
+<img src="https://git.jkaindl.de/jkaindl/llm-lab/raw/branch/main/docs/images/settings.png" width="820" alt="The full LLM Lab settings tab: Record LLM calls, Keep traces for, Maximum trace size, Never record these features, Never record notes from these folders, Strict folder exclusion, Mask personal data in raw traces too, Additional terms to mask, and the three binding hint lines Where the data is stored, What masking does and does not catch, What the folder filter can and cannot see">
 
 | Setting | Default | Effect |
 |---|---|---|
