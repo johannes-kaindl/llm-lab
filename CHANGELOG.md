@@ -6,8 +6,6 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
-## [0.7.0] — 2026-09-17
-
 ### Added
 - **README bebildert** (`docs/images/hero.png`, `rate-empty.png`, `rate-details.png`,
   `settings.png` + Thumbnails) — reproduzierbar aufgenommen über den Aufnahme-Vertrag
