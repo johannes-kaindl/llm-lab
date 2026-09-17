@@ -69,3 +69,11 @@ npm run shots -- --only hero.png   # ein Bild nachziehen
 GUI-Smoke-Setup), wird für einen laufenden Nachzieh-Lauf aber **nicht** gebraucht: der Vault
 ist bereits gebaut und registriert, ein `--setup`-Lauf verlangt einen Obsidian-Neustart, den
 dieser Vertrag genau deshalb vermeidet.
+
+⚠️ **`--only hero.png` allein setzt die Traces NICHT zurück** (gemessen 2026-09-17): den
+Reset erledigt nur `rate-empty.png` als erster Shot der vollen Sequenz — ein isolierter
+`--only`-Nachzug von `hero.png` seedet auf einen bereits gefüllten Trace-Bestand drauf und
+zeigt dann mehr Zeilen als der Vertrag nennt (z. B. „8 of 8" statt „4 of 4"). Vor einem
+solchen Nachzug Traces/Dataset von Hand leeren und das Plugin aus-/wieder einschalten
+(derselbe Schritt, den `zustandZuruecksetzen()` im Treiber automatisch macht), oder gleich
+den vollen Lauf ohne `--only` fahren.
