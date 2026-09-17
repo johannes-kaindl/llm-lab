@@ -6,6 +6,8 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.6.0] — 2026-09-17
+
 ### Fixed
 - **Zwei Leaves derselben Bewertungs-Ansicht teilten sich eine `RatePanel`-Instanz** (I2).
   Layout-Wiederherstellung, Split oder „in neues Fenster verschieben" ließen die zweite
