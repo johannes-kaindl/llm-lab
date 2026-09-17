@@ -8,8 +8,8 @@ describe("manifest", () => {
     expect(manifest.name).toBe("LLM Lab");
   });
 
-  it("zeigt authorUrl auf das Profil, unter dem der Code liegt (nie die eigene Domain)", () => {
-    expect(manifest.authorUrl).toBe("https://github.com/johannes-kaindl");
+  it("zeigt authorUrl auf den Dach-Sollwert (eigene Domain statt des aufgegebenen GitHub-Profils)", () => {
+    expect(manifest.authorUrl).toBe("https://jkaindl.de");
   });
 
   it("haelt Manifest- und package-Version synchron", () => {
