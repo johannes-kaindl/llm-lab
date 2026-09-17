@@ -209,6 +209,38 @@ async function rateTabBereit(cdp: Cdp, erwarteteZeilen: number): Promise<boolean
   `, 10_000, 300));
 }
 
+/** Box eines Panels, geschnitten auf seinen tatsaechlichen Inhalt statt auf seine volle
+ *  (Fenster-hohe) Containerflaeche.
+ *
+ *  `boxOf(cdp, ".llm-lab-rate", PADDING)` hatte zwei Fehler, beide erst im echten
+ *  Screenshot sichtbar (nicht an den Massen, die `boxOf` selbst zurueckgab):
+ *  1. `.llm-lab-rate` ist so hoch wie sein Container (Hub-Content-Bereich), nicht so hoch
+ *     wie sein Inhalt — bei nur einer geoeffneten Zeile oder dem Leerzustand blieb der
+ *     Rest der Flaeche schwarz (400-600px in `hero.png`/`rate-empty.png`).
+ *  2. Der `PADDING`-Rand von `boxOf` addiert sich auf ALLEN vier Seiten, auch nach OBEN
+ *     und UNTEN ueber die tatsaechliche Panel-Grenze hinaus — dort liegen die Tab-Leiste
+ *     ueber dem View und ggf. ein Statusleisten-Element darunter, beide rutschten als
+ *     angeschnittener Rand ins Bild.
+ *  Diese Funktion nimmt deshalb `rootSelector`s eigene Kanten fuer x/Breite/oberen Rand
+ *  (kein Aufwaerts-Padding) und schneidet die Hoehe auf die untere Kante des LETZTEN
+ *  sichtbaren Kindelements plus einem kleinen, panel-eigenen Rand (`bottomPadding`) —
+ *  Hintergrundfarbe des Panels, keine fremde Kante. */
+async function inhaltsBox(cdp: Cdp, rootSelector: string, bottomPadding = 16): Promise<Rect | null> {
+  return cdp.evaluate<Rect | null>(`
+    const root = document.querySelector(${JSON.stringify(rootSelector)});
+    if (!root) return null;
+    const kinder = [...root.children].filter((k) => {
+      const r = k.getBoundingClientRect();
+      return r.width > 1 && r.height > 1;
+    });
+    const rootR = root.getBoundingClientRect();
+    if (!kinder.length) return { x: rootR.x, y: rootR.y, width: rootR.width, height: rootR.height };
+    const letzte = kinder[kinder.length - 1].getBoundingClientRect();
+    const hoehe = Math.min(letzte.bottom - rootR.y + ${bottomPadding}, rootR.height);
+    return { x: rootR.x, y: rootR.y, width: rootR.width, height: hoehe };
+  `);
+}
+
 // --- Rezept ---------------------------------------------------------------------
 
 interface Shot {
@@ -232,7 +264,7 @@ const SHOTS: Shot[] = [
         console.log("      · kein .llm-lab-empty im DOM");
         return null;
       }
-      return boxOf(cdp, ".llm-lab-rate", PADDING);
+      return inhaltsBox(cdp, ".llm-lab-rate");
     },
   },
   {
@@ -261,7 +293,7 @@ const SHOTS: Shot[] = [
         const r = el.getBoundingClientRect();
         return r.width > 1 && r.height > 1;
       `, 5_000, 200);
-      return boxOf(cdp, ".llm-lab-rate", PADDING);
+      return inhaltsBox(cdp, ".llm-lab-rate");
     },
   },
   {
