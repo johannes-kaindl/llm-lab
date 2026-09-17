@@ -6,10 +6,18 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.7.0] — 2026-09-17
+
 ### Added
-- **Aufnahme-Vertrag + Rezept für README-Bilder** (`docs/images/README.md`,
-  `scripts/shots.ts`, `npm run shots`/`shots:check`) — noch ohne die vier Bilder selbst
-  (blockiert auf CDP-Zugriff gegen die reguläre Obsidian-Instanz, s. Vault-Cockpit).
+- **README bebildert** (`docs/images/hero.png`, `rate-empty.png`, `rate-details.png`,
+  `settings.png` + Thumbnails) — reproduzierbar aufgenommen über den Aufnahme-Vertrag
+  `docs/images/README.md` und das Rezept `scripts/shots.ts` (`npm run shots`/`shots:check`),
+  eingebettet in `README.md` und `README.de.md`. Die vier alten Debug-Screenshots aus
+  `docs/images/welle3/` sind entfernt: deutsche Oberfläche, Fremdkanten, kein Vertrag.
+
+### Changed
+- **`authorUrl` zeigt auf `https://jkaindl.de`** statt auf das aufgegebene GitHub-Profil
+  (Dach-Sollwert seit 2026-09-03); `tests/manifest.test.ts` prüft den neuen Wert.
 
 ## [0.6.0] — 2026-09-17
 
