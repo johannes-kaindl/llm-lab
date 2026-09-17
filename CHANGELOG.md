@@ -6,6 +6,11 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+- **Aufnahme-Vertrag + Rezept für README-Bilder** (`docs/images/README.md`,
+  `scripts/shots.ts`, `npm run shots`/`shots:check`) — noch ohne die vier Bilder selbst
+  (blockiert auf CDP-Zugriff gegen die reguläre Obsidian-Instanz, s. Vault-Cockpit).
+
 ## [0.6.0] — 2026-09-17
 
 ### Fixed
