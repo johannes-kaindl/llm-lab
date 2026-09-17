@@ -124,11 +124,28 @@ const SEED_RECORDS: Array<{
     feature: "search",
     model: "qwen2.5-14b-instruct",
     messages: [
-      { role: "user", content: "Find notes mentioning prompt versions." },
+      {
+        role: "user",
+        content:
+          "Find notes mentioning prompt versions, and summarize what each one says about "
+          + "how a version is identified.",
+      },
     ],
     content:
-      "Found one match: \"Prompt versions\" — it explains how a stable prompt template gets "
-      + "hashed separately from per-call content.",
+      "Found three matches:\n\n"
+      + "- \"Prompt versions\" — explains how a stable prompt template gets hashed "
+      + "separately from per-call content, so retrieval context or user input never "
+      + "changes the version identifier.\n"
+      + "- \"Where the data lives\" — mentions in passing that a version hash is stored "
+      + "alongside each trace, not computed after the fact.\n"
+      + "- \"Latency and first token\" — cross-references the version hash when comparing "
+      + "two runs of the same prompt template.\n\n"
+      + "Common thread across all three: a version is defined by the *wording* of the "
+      + "stable part of a prompt, not by the model, the endpoint, or anything that varies "
+      + "per call. If you change the wording — even by translating it — that counts as a "
+      + "new version, because the wording actually changed.\n\n"
+      + "Want me to open the first note, or list the other notes that reference these "
+      + "three?",
     latencyMs: 980,
   },
 ];
