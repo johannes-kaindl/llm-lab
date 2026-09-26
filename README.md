@@ -2,13 +2,14 @@
 
 **Record every local LLM call your Obsidian plugins make, so the good answers can be rated and turned into evaluation or fine-tuning material.**
 
-[![License: AGPL-3.0](https://img.shields.io/badge/license-AGPL--3.0-blue.svg)](https://git.jkaindl.de/jkaindl/llm-lab/src/branch/main/LICENSE)
-[![Docs: CC BY-SA 4.0](https://img.shields.io/badge/docs-CC%20BY--SA%204.0-lightgrey.svg)](https://git.jkaindl.de/jkaindl/llm-lab/src/branch/main/LICENSE-DOCS)
+[![License: AGPL-3.0](https://img.shields.io/badge/license-AGPL--3.0-blue.svg)](https://github.com/johannes-kaindl/llm-lab/blob/main/LICENSE)
+[![Docs: CC BY-SA 4.0](https://img.shields.io/badge/docs-CC%20BY--SA%204.0-lightgrey.svg)](https://github.com/johannes-kaindl/llm-lab/blob/main/LICENSE-DOCS)
+[![Release](https://img.shields.io/github/v/release/johannes-kaindl/llm-lab?label=release)](https://github.com/johannes-kaindl/llm-lab/releases)
 ![Platform](https://img.shields.io/badge/platform-Obsidian%201.8.7%2B%20·%20desktop%20%26%20mobile-7c3aed)
 
-> Deutsche Fassung: [README.de.md](README.de.md).
+> Deutsche Fassung: [README.de.md](https://github.com/johannes-kaindl/llm-lab/blob/main/README.de.md).
 
-<p align="center"><img src="https://git.jkaindl.de/jkaindl/llm-lab/raw/branch/main/docs/images/hero.png" width="820" alt="The Rate tab filled with four recordings, filtered to Unrated only, one row selected showing the full prompt and response below it, and the Good/Poor/Add tags, note, correction/Delete recording action bar"></p>
+<p align="center"><img src="https://raw.githubusercontent.com/johannes-kaindl/llm-lab/main/docs/images/hero.png" width="820" alt="The Rate tab filled with four recordings, filtered to Unrated only, one row selected showing the full prompt and response below it, and the Good/Poor/Add tags, note, correction/Delete recording action bar"></p>
 
 ## What it does
 
@@ -34,9 +35,9 @@ to the network, and does not read or write anything in your notes.
 - **It does not work on its own.** Installing LLM Lab with no other plugin calling its API
   records nothing at all. It is infrastructure for plugin authors, not a standalone feature
   for end users.
-- **Slice 1 ships no rating UI, no dataset browser, and no export.** Those depend on a rated
-  dataset layer that this release deliberately does not build yet — see the changelog for
-  what is coming. Right now, LLM Lab has exactly one visible surface: its settings tab.
+- **It is not a dataset browser or an exporter.** You can rate recordings in the **LLM Lab**
+  view; the ratings are collected in `dataset.jsonl`. Statistics and an export dialog are not
+  built yet — see the changelog for what is coming.
 - **It does not find everything sensitive.** See the section below — this is the one place in
   this README that is not allowed to be soft about it.
 
@@ -60,7 +61,7 @@ passes its own keys along with the call (`secrets` on the logging API), they are
 masking and never become part of the record. **The condition worth knowing:** LLM Lab has no
 key list of its own, so this only covers keys a calling plugin actually hands over. A plugin
 that passes none is back to the `Bearer` pattern alone. Separately — and only if the stricter
-"redact PII in trace" setting is turned on (default: off) — a second pass runs over the message
+"Mask personal data in raw traces too" setting is turned on (default: off) — a second pass runs over the message
 and response text:
 
 **The masking finds patterns. It is deliberately not told to find meaning.** Concretely, it
@@ -118,13 +119,17 @@ removing the plugin from a vault stops all recording for that vault immediately.
 
 ## Install
 
+### From the Community plugins browser (recommended)
+
+**Settings → Community plugins → Browse**, search for **"LLM Lab"**, select **Install**, then
+**Enable**. Updates arrive like any other community plugin update.
+
 ### From a release
 
 Download `main.js`, `manifest.json` and `styles.css` from the
 [latest release](https://github.com/johannes-kaindl/llm-lab/releases/latest), put them into
 `<vault>/.obsidian/plugins/llm-lab/`, and enable the plugin under
-**Settings → Community plugins**. LLM Lab is **not** in the community plugin browser (yet) —
-this is a manual install either way.
+**Settings → Community plugins**.
 
 ### From source
 
@@ -164,25 +169,27 @@ recording. Beyond that view, the only three things you ever do with LLM Lab are 
 Turning the plugin off — or removing it — stops all recording for that vault immediately.
 
 <p align="center">
-<a href="https://git.jkaindl.de/jkaindl/llm-lab/raw/branch/main/docs/images/rate-empty.png"><img src="https://git.jkaindl.de/jkaindl/llm-lab/raw/branch/main/docs/images/thumbs/rate-empty.png" width="380" alt="The Rate tab before any recording has arrived: the filter bar above an empty-state message, No recordings yet — LLM Lab only records what another plugin sends it, nothing has arrived so far"></a>
-<a href="https://git.jkaindl.de/jkaindl/llm-lab/raw/branch/main/docs/images/rate-details.png"><img src="https://git.jkaindl.de/jkaindl/llm-lab/raw/branch/main/docs/images/thumbs/rate-details.png" width="380" alt="The Add detail to this rating modal open over a recording: Tags, Note, and the full-modal-width Better answer textarea"></a>
+<a href="https://raw.githubusercontent.com/johannes-kaindl/llm-lab/main/docs/images/rate-empty.png"><img src="https://raw.githubusercontent.com/johannes-kaindl/llm-lab/main/docs/images/thumbs/rate-empty.png" width="380" alt="The Rate tab before any recording has arrived: the filter bar above an empty-state message, No recordings yet — LLM Lab only records what another plugin sends it, nothing has arrived so far"></a>
+<a href="https://raw.githubusercontent.com/johannes-kaindl/llm-lab/main/docs/images/rate-details.png"><img src="https://raw.githubusercontent.com/johannes-kaindl/llm-lab/main/docs/images/thumbs/rate-details.png" width="380" alt="The Add detail to this rating modal open over a recording: Tags, Note, and the full-modal-width Better answer textarea"></a>
 </p>
 <p align="center"><sub>Click either preview for full size — left: before anything has been recorded; right: adding tags, a note or a correction to a rating</sub></p>
 
 ## Configuration
 
-<img src="https://git.jkaindl.de/jkaindl/llm-lab/raw/branch/main/docs/images/settings.png" width="820" alt="The full LLM Lab settings tab: Record LLM calls, Keep traces for, Maximum trace size, Never record these features, Never record notes from these folders, Strict folder exclusion, Mask personal data in raw traces too, Additional terms to mask, and the three binding hint lines Where the data is stored, What masking does and does not catch, What the folder filter can and cannot see">
+<img src="https://raw.githubusercontent.com/johannes-kaindl/llm-lab/main/docs/images/settings.png" width="820" alt="The full LLM Lab settings tab: Record LLM calls, Keep traces for, Maximum trace size, Never record these features, Never record notes from these folders, Strict folder exclusion, Mask personal data in raw traces too, Additional terms to mask, and the three binding hint lines Where the data is stored, What masking does and does not catch, What the folder filter can and cannot see">
 
 | Setting | Default | Effect |
 |---|---|---|
-| **Recording enabled** | on | Master switch. Off means no trace is ever written, regardless of what calls the API. |
-| **Days to keep** | 7 | Trace files older than this are deleted on rotation. Today's file is never deleted. |
-| **Max total size (MB)** | 20 | Once the kept trace files exceed this, the oldest are deleted first — today's file is exempt. |
-| **Excluded features** | `settings-probe` | One feature identifier per line. A calling plugin's own connectivity probes are the typical entry — traffic that is not a real interaction. |
+| **Record LLM calls** | on | Master switch. Off means no trace is ever written, regardless of what calls the API. |
+| **Keep traces for (days)** | 7 | Trace files older than this are deleted on rotation. Today's file is never deleted. |
+| **Maximum trace size (MB)** | 20 | Once the kept trace files exceed this, the oldest are deleted first — today's file is exempt. |
+| **Never record these features** | `settings-probe` | One feature key per line. A calling plugin's own connectivity probes are the typical entry — traffic that is not a real interaction. |
 | **Never record notes from these folders** | *(empty)* | One folder path per line, subfolders included. A call that drew on a note from one of them is never written. Only applies to calls whose plugin reports which notes went into them. |
 | **Strict folder exclusion** | on | On: a single excluded note prevents the whole call from being recorded. Off: the call is only skipped when every note involved is excluded. |
-| **Custom PII terms** | *(empty)* | One term per line, in addition to the built-in e-mail/IBAN/phone/URL-credential patterns — masked the same way, with the same numbered-placeholder consistency. |
-| **Redact PII in trace** | off | Applies the PII masking pass to the raw trace as well, not only to a future rated dataset. Off by default because debugging a bad answer needs to see what was actually sent. |
+| **Mask personal data in raw traces too** | off | Applies the PII masking pass to the raw trace as well, not only to the rated dataset. Off by default because debugging a bad answer needs to see what was actually sent. |
+| **Additional terms to mask** | *(empty)* | One term per line, in addition to the built-in e-mail/IBAN/phone/URL-credential patterns — masked the same way, with the same numbered-placeholder consistency. Only takes effect while the switch above is on. |
+
+Below the settings, three read-only lines state where the data is stored and what masking and the folder filter can and cannot see.
 
 A status-bar item and the **"LLM Lab: pause or resume recording"** command let you pause and resume for
 the current session without touching settings — the pause is intentionally not persisted, so
@@ -205,10 +212,10 @@ disk asynchronously, so a caller mid-stream is never slowed down or blocked by l
 the API defensively (LLM Lab may not be installed) and never `await` `log()` — it has nothing
 to await.
 
-**`apiVersion` is `3`.** Check it against your own constant before relying on the shape — that
+**`apiVersion` is `4`.** Check it against your own constant before relying on the shape — that
 version number is the contract, deliberately in place of a compile-time dependency between two
-independent repositories. Version 3 adds a third optional field, on top of the two from version
-2 — a consumer should fill in all it can:
+independent repositories. Version 3 added `promptTemplate`, version 4 added `turnId`, on top of the two
+fields from version 2 — a consumer should fill in all it can:
 
 - **`secrets?: string[]`** — the endpoint keys used for this call. They are used only as a
   masking list and never become part of the record. Without them, only verbatim `Bearer`
@@ -224,19 +231,32 @@ independent repositories. Version 3 adds a third optional field, on top of the t
   language changes the wording too — and with it the hash, correctly counting as a new
   version, since the wording did change.
 
-See [`AGENTS.md`](AGENTS.md) for the full contract and the reasoning behind it.
+- **`turnId?: string`** — one id shared by every call that belongs to a single user action
+  (for example the several model calls of one agent turn). LLM Lab passes it through unchanged
+  so recordings can be grouped later.
+
+See [`AGENTS.md`](https://github.com/johannes-kaindl/llm-lab/blob/main/AGENTS.md) for the full contract and the reasoning behind it.
+
+## Documentation
+
+- [Documentation index](https://github.com/johannes-kaindl/llm-lab/blob/main/docs/README.md) — the guides, organised after Diátaxis.
+- [Getting started](https://github.com/johannes-kaindl/llm-lab/blob/main/docs/getting-started.md) — from the install to your first rated recording.
+- [Troubleshooting](https://github.com/johannes-kaindl/llm-lab/blob/main/docs/troubleshooting.md) — what you see, what it means, what to do.
+- [`README.de.md`](https://github.com/johannes-kaindl/llm-lab/blob/main/README.de.md) — German version of this file (the English README is authoritative).
+- [`CHANGELOG.md`](https://github.com/johannes-kaindl/llm-lab/blob/main/CHANGELOG.md) — per-release notes.
+- [`SECURITY.md`](https://github.com/johannes-kaindl/llm-lab/blob/main/SECURITY.md) — how to report a security issue.
 
 ## Contributing
 
-Contributions are welcome. Please read [CONTRIBUTING.md](CONTRIBUTING.md) for the workflow
+Contributions are welcome. Please read [CONTRIBUTING.md](https://github.com/johannes-kaindl/llm-lab/blob/main/CONTRIBUTING.md) for the workflow
 (test-driven, `main` always green, feature work in `feat/<name>`, Conventional Commits) and
-[AGENTS.md](AGENTS.md) for the architecture and module conventions. The canonical repository
-lives on Forgejo (`git.jkaindl.de/jkaindl/llm-lab`); GitHub (`johannes-kaindl/llm-lab`) is a
-mirror.
+[AGENTS.md](https://github.com/johannes-kaindl/llm-lab/blob/main/AGENTS.md) for the architecture and module conventions. The canonical repository
+lives on Forgejo (`git.jkaindl.de/jkaindl/llm-lab`); GitHub (`johannes-kaindl/llm-lab`) carries the
+releases and issues.
 
 ## License
 
-- **Code:** [AGPL-3.0-or-later](LICENSE). A commercial dual-license is available on request if the AGPL copyleft does not fit your use case.
-- **Documentation and text:** [CC BY-SA 4.0](LICENSE-DOCS).
+- **Code:** [AGPL-3.0-or-later](https://github.com/johannes-kaindl/llm-lab/blob/main/LICENSE). A commercial dual-license is available on request if the AGPL copyleft does not fit your use case — see [`LICENSING.md`](https://github.com/johannes-kaindl/llm-lab/blob/main/LICENSING.md). Contributions are accepted under the [Contributor License Agreement](https://github.com/johannes-kaindl/llm-lab/blob/main/CLA.md).
+- **Documentation and text:** [CC BY-SA 4.0](https://github.com/johannes-kaindl/llm-lab/blob/main/LICENSE-DOCS).
 
 Copyright © 2026 Johannes Kaindl.

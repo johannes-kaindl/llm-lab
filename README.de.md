@@ -2,13 +2,14 @@
 
 **Zeichnet jeden lokalen LLM-Aufruf deiner Obsidian-Plugins auf, damit die guten Antworten bewertet und zu Auswertungs- oder Fine-Tuning-Material werden können.**
 
-[![Lizenz: AGPL-3.0](https://img.shields.io/badge/license-AGPL--3.0-blue.svg)](https://git.jkaindl.de/jkaindl/llm-lab/src/branch/main/LICENSE)
-[![Doku: CC BY-SA 4.0](https://img.shields.io/badge/docs-CC%20BY--SA%204.0-lightgrey.svg)](https://git.jkaindl.de/jkaindl/llm-lab/src/branch/main/LICENSE-DOCS)
+[![Lizenz: AGPL-3.0](https://img.shields.io/badge/license-AGPL--3.0-blue.svg)](https://github.com/johannes-kaindl/llm-lab/blob/main/LICENSE)
+[![Doku: CC BY-SA 4.0](https://img.shields.io/badge/docs-CC%20BY--SA%204.0-lightgrey.svg)](https://github.com/johannes-kaindl/llm-lab/blob/main/LICENSE-DOCS)
+[![Release](https://img.shields.io/github/v/release/johannes-kaindl/llm-lab?label=release)](https://github.com/johannes-kaindl/llm-lab/releases)
 ![Plattform](https://img.shields.io/badge/platform-Obsidian%201.8.7%2B%20·%20desktop%20%26%20mobile-7c3aed)
 
-> Englisch ist die kanonische Fassung: [README.md](README.md).
+> Englisch ist die kanonische Fassung: [README.md](https://github.com/johannes-kaindl/llm-lab/blob/main/README.md).
 
-<p align="center"><img src="https://git.jkaindl.de/jkaindl/llm-lab/raw/branch/main/docs/images/hero.png" width="820" alt="Der Bewerten-Tab gefüllt mit vier Aufzeichnungen, gefiltert auf Nur unbewertete, eine Zeile ausgewählt mit vollem Prompt und Antwort darunter, und der Aktionsleiste Gut/Schlecht/Tags, Notiz, Korrektur hinzufügen/Aufzeichnung löschen"></p>
+<p align="center"><img src="https://raw.githubusercontent.com/johannes-kaindl/llm-lab/main/docs/images/hero.png" width="820" alt="Der Bewerten-Tab gefüllt mit vier Aufzeichnungen, gefiltert auf Nur unbewertete, eine Zeile ausgewählt mit vollem Prompt und Antwort darunter, und der Aktionsleiste Gut/Schlecht/Tags, Notiz, Korrektur hinzufügen/Aufzeichnung löschen"></p>
 
 ## Was es tut
 
@@ -35,10 +36,9 @@ nichts in deinen Notizen.
 - **Es arbeitet nicht allein.** LLM Lab zu installieren, ohne dass ein anderes Plugin seine
   API aufruft, zeichnet überhaupt nichts auf. Es ist Infrastruktur für Plugin-Autoren, kein
   eigenständiges Feature für Endnutzer.
-- **Slice 1 liefert keine Bewertungs-Oberfläche, keinen Datensatz-Browser und keinen Export.**
-  Alle drei setzen eine bewertete Datensatz-Schicht voraus, die dieses Release bewusst noch
-  nicht baut — was kommt, steht im Changelog. Derzeit hat LLM Lab genau eine sichtbare
-  Oberfläche: seinen Einstellungs-Tab.
+- **Es ist kein Datensatz-Browser und kein Export-Werkzeug.** Aufzeichnungen bewertest du in
+  der Ansicht **LLM Lab**; die Bewertungen sammelt `dataset.jsonl`. Statistik und Export-Dialog
+  sind noch nicht gebaut — was kommt, steht im Changelog.
 - **Es findet nicht alles Sensible.** Siehe den Abschnitt unten — das ist die eine Stelle in
   dieser README, die nicht weich sein darf.
 
@@ -126,13 +126,17 @@ beendet dort sofort jede Aufzeichnung.
 
 ## Installation
 
+### Aus dem Community-Plugin-Browser (empfohlen)
+
+**Einstellungen → Community-Plugins → Durchsuchen**, nach **„LLM Lab"** suchen, **Installieren**,
+dann **Aktivieren**. Aktualisierungen kommen wie bei jedem Community-Plugin.
+
 ### Aus einem Release
 
 `main.js`, `manifest.json` und `styles.css` vom
 [neuesten Release](https://github.com/johannes-kaindl/llm-lab/releases/latest) herunterladen,
 nach `<vault>/.obsidian/plugins/llm-lab/` legen und das Plugin unter
-**Einstellungen → Community-Plugins** aktivieren. LLM Lab ist (noch) **nicht** im
-Plugin-Browser — die Installation ist so oder so manuell.
+**Einstellungen → Community-Plugins** aktivieren.
 
 ### Aus dem Quelltext
 
@@ -173,14 +177,14 @@ Dinge, die du je mit LLM Lab tust, diese:
 Das Plugin auszuschalten — oder zu entfernen — beendet die Aufzeichnung in diesem Vault sofort.
 
 <p align="center">
-<a href="https://git.jkaindl.de/jkaindl/llm-lab/raw/branch/main/docs/images/rate-empty.png"><img src="https://git.jkaindl.de/jkaindl/llm-lab/raw/branch/main/docs/images/thumbs/rate-empty.png" width="380" alt="Der Bewerten-Tab, bevor irgendeine Aufzeichnung angekommen ist: die Filterleiste über einer Leerzustands-Meldung, No recordings yet — LLM Lab only records what another plugin sends it, nothing has arrived so far"></a>
-<a href="https://git.jkaindl.de/jkaindl/llm-lab/raw/branch/main/docs/images/rate-details.png"><img src="https://git.jkaindl.de/jkaindl/llm-lab/raw/branch/main/docs/images/thumbs/rate-details.png" width="380" alt="Das Vertiefungs-Modal Add detail to this rating offen über einer Aufzeichnung: Tags, Note und die volle-Modalbreite-Textarea Better answer"></a>
+<a href="https://raw.githubusercontent.com/johannes-kaindl/llm-lab/main/docs/images/rate-empty.png"><img src="https://raw.githubusercontent.com/johannes-kaindl/llm-lab/main/docs/images/thumbs/rate-empty.png" width="380" alt="Der Bewerten-Tab, bevor irgendeine Aufzeichnung angekommen ist: die Filterleiste über einer Leerzustands-Meldung, No recordings yet — LLM Lab only records what another plugin sends it, nothing has arrived so far"></a>
+<a href="https://raw.githubusercontent.com/johannes-kaindl/llm-lab/main/docs/images/rate-details.png"><img src="https://raw.githubusercontent.com/johannes-kaindl/llm-lab/main/docs/images/thumbs/rate-details.png" width="380" alt="Das Vertiefungs-Modal Add detail to this rating offen über einer Aufzeichnung: Tags, Note und die volle-Modalbreite-Textarea Better answer"></a>
 </p>
 <p align="center"><sub>Für die volle Größe auf eine Vorschau klicken — links: bevor irgendetwas aufgezeichnet wurde; rechts: Tags, eine Notiz oder eine Korrektur zu einer Bewertung hinzufügen</sub></p>
 
 ## Konfiguration
 
-<img src="https://git.jkaindl.de/jkaindl/llm-lab/raw/branch/main/docs/images/settings.png" width="820" alt="Der vollständige LLM-Lab-Einstellungen-Tab: LLM-Aufrufe mitschreiben, Traces aufbewahren, Maximale Trace-Größe, Diese Features nie mitschreiben, Notizen aus diesen Ordnern nie mitschreiben, Strenger Ordner-Ausschluss, Personenbezogenes auch im rohen Trace maskieren, Zusätzliche Begriffe maskieren, sowie die drei inhaltlich verbindlichen Hinweiszeilen Where the data is stored, What masking does and does not catch, What the folder filter can and cannot see">
+<img src="https://raw.githubusercontent.com/johannes-kaindl/llm-lab/main/docs/images/settings.png" width="820" alt="Der vollständige LLM-Lab-Einstellungen-Tab: LLM-Aufrufe mitschreiben, Traces aufbewahren, Maximale Trace-Größe, Diese Features nie mitschreiben, Notizen aus diesen Ordnern nie mitschreiben, Strenger Ordner-Ausschluss, Personenbezogenes auch im rohen Trace maskieren, Zusätzliche Begriffe maskieren, sowie die drei inhaltlich verbindlichen Hinweiszeilen Where the data is stored, What masking does and does not catch, What the folder filter can and cannot see">
 
 | Einstellung | Standard | Wirkung |
 |---|---|---|
@@ -191,7 +195,7 @@ Das Plugin auszuschalten — oder zu entfernen — beendet die Aufzeichnung in d
 | **Notizen aus diesen Ordnern nie mitschreiben** | *(leer)* | Ein Ordnerpfad je Zeile, Unterordner zählen mit. Ein Aufruf, in den eine Notiz daraus eingeflossen ist, wird nicht geschrieben. Greift nur bei Aufrufen, deren Plugin die beteiligten Notizen meldet. |
 | **Strenger Ordner-Ausschluss** | an | An: eine einzige ausgeschlossene Notiz verhindert den ganzen Aufruf. Aus: der Aufruf entfällt nur, wenn ALLE beteiligten Notizen ausgeschlossen sind. |
 | **Zusätzliche Begriffe maskieren** | *(leer)* | Ein Begriff je Zeile, zusätzlich zu den eingebauten Mustern für E-Mail/IBAN/Telefon/URL-Zugangsdaten — gleich maskiert, mit derselben Platzhalter-Konsistenz. Wirkt nur, solange der Schalter darüber an ist. |
-| **Personenbezogenes auch im rohen Trace maskieren** | aus | Wendet die PII-Maskierung auch auf den rohen Trace an, nicht nur auf einen künftigen bewerteten Datensatz. Standardmäßig aus, weil das Debuggen einer schlechten Antwort sehen muss, was wirklich gesendet wurde. |
+| **Personenbezogenes auch im rohen Trace maskieren** | aus | Wendet die PII-Maskierung auch auf den rohen Trace an, nicht nur auf den bewerteten Datensatz. Standardmäßig aus, weil das Debuggen einer schlechten Antwort sehen muss, was wirklich gesendet wurde. |
 
 ## Für Plugin-Autoren
 
@@ -211,10 +215,10 @@ asynchron auf die Platte, damit ein Aufrufer mitten im Stream nie ausgebremst od
 wird. Die API defensiv lesen (LLM Lab ist womöglich nicht installiert) und `log()` **nie**
 `await`en — es gibt nichts zu erwarten.
 
-**`apiVersion` steht auf `3`.** Sie gegen die eigene Konstante prüfen, bevor man sich auf die
+**`apiVersion` steht auf `4`.** Sie gegen die eigene Konstante prüfen, bevor man sich auf die
 Form verlässt — diese Versionsnummer ist der Vertrag, bewusst anstelle einer Build-Kopplung
-zwischen zwei eigenständigen Repositories. Version 3 ergänzt ein drittes optionales Feld zu
-den beiden aus Version 2 — ein Konsument sollte alle füllen, die er kann:
+zwischen zwei eigenständigen Repositories. Version 3 ergänzte `promptTemplate`, Version 4 `turnId`, zusätzlich zu
+den beiden Feldern aus Version 2 — ein Konsument sollte alle füllen, die er kann:
 
 - **`secrets?: string[]`** — die für diesen Aufruf verwendeten Endpunkt-Schlüssel. Sie dienen
   ausschließlich als Maskierungsliste und werden nie Teil des Records. Ohne sie werden nur
@@ -230,19 +234,33 @@ den beiden aus Version 2 — ein Konsument sollte alle füllen, die er kann:
   Wortlaut mit — und damit auch den Hash, zu Recht als neue Fassung gezählt, denn der Wortlaut
   hat sich ja tatsächlich geändert.
 
-Der vollständige Vertrag und seine Begründung stehen in [`AGENTS.md`](AGENTS.md).
+- **`turnId?: string`** — eine Kennung, die alle Aufrufe einer einzelnen Nutzerhandlung teilen
+  (etwa die mehreren Modellaufrufe eines Agent-Zugs). LLM Lab reicht sie unverändert durch,
+  damit sich Aufzeichnungen später gruppieren lassen.
+
+Der vollständige Vertrag und seine Begründung stehen in [`AGENTS.md`](https://github.com/johannes-kaindl/llm-lab/blob/main/AGENTS.md).
+
+## Dokumentation
+
+Die Anleitungen sind auf Englisch.
+
+- [Dokumentations-Index](https://github.com/johannes-kaindl/llm-lab/blob/main/docs/README.md) — die Anleitungen, nach Diátaxis gegliedert.
+- [Getting started](https://github.com/johannes-kaindl/llm-lab/blob/main/docs/getting-started.md) — von der Installation bis zur ersten bewerteten Aufzeichnung.
+- [Troubleshooting](https://github.com/johannes-kaindl/llm-lab/blob/main/docs/troubleshooting.md) — was du siehst, was es bedeutet, was zu tun ist.
+- [`CHANGELOG.md`](https://github.com/johannes-kaindl/llm-lab/blob/main/CHANGELOG.md) — Release-Notizen.
+- [`SECURITY.md`](https://github.com/johannes-kaindl/llm-lab/blob/main/SECURITY.md) — wie man ein Sicherheitsproblem meldet.
 
 ## Mitwirken
 
-Beiträge sind willkommen. Der Arbeitsablauf steht in [CONTRIBUTING.md](CONTRIBUTING.md)
+Beiträge sind willkommen. Der Arbeitsablauf steht in [CONTRIBUTING.md](https://github.com/johannes-kaindl/llm-lab/blob/main/CONTRIBUTING.md)
 (test-getrieben, `main` immer grün, Feature-Arbeit in `feat/<name>`, Conventional Commits),
-Architektur und Modul-Konventionen in [AGENTS.md](AGENTS.md). Das kanonische Repository liegt
-auf Forgejo (`git.jkaindl.de/jkaindl/llm-lab`); GitHub (`johannes-kaindl/llm-lab`) ist ein
-Spiegel.
+Architektur und Modul-Konventionen in [AGENTS.md](https://github.com/johannes-kaindl/llm-lab/blob/main/AGENTS.md). Das kanonische Repository liegt
+auf Forgejo (`git.jkaindl.de/jkaindl/llm-lab`); GitHub (`johannes-kaindl/llm-lab`) trägt die
+Releases und Issues.
 
 ## Lizenz
 
-- **Code:** [AGPL-3.0-or-later](LICENSE). Eine kommerzielle Zweitlizenz ist auf Anfrage verfügbar, falls das AGPL-Copyleft nicht zu deinem Anwendungsfall passt.
-- **Dokumentation und Texte:** [CC BY-SA 4.0](LICENSE-DOCS).
+- **Code:** [AGPL-3.0-or-later](https://github.com/johannes-kaindl/llm-lab/blob/main/LICENSE). Eine kommerzielle Zweitlizenz ist auf Anfrage verfügbar, falls das AGPL-Copyleft nicht zu deinem Anwendungsfall passt — siehe [`LICENSING.md`](https://github.com/johannes-kaindl/llm-lab/blob/main/LICENSING.md). Beiträge werden unter dem [Contributor License Agreement](https://github.com/johannes-kaindl/llm-lab/blob/main/CLA.md) angenommen.
+- **Dokumentation und Texte:** [CC BY-SA 4.0](https://github.com/johannes-kaindl/llm-lab/blob/main/LICENSE-DOCS).
 
 Copyright © 2026 Johannes Kaindl.
