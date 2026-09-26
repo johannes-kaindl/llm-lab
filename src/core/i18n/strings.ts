@@ -2,6 +2,10 @@ import { defineStrings } from "../../vendor/kit/i18n";
 
 export const STRINGS = {
   en: {
+    "help.name": "Help",
+    "help.desc": "Getting started, how-tos and troubleshooting",
+    "help.openDocs": "Open documentation",
+    "help.reportIssue": "Report an issue",
     "view.title": "LLM Lab",
     "view.tab.rate": "Rate",
     "view.tab.stats": "Statistics",
@@ -63,6 +67,10 @@ export const STRINGS = {
     "details.cancel": "Cancel",
   },
   de: {
+    "help.name": "Hilfe",
+    "help.desc": "Erste Schritte, Anleitungen und Fehlersuche",
+    "help.openDocs": "Dokumentation öffnen",
+    "help.reportIssue": "Problem melden",
     "view.title": "LLM Lab",
     "view.tab.rate": "Bewerten",
     "view.tab.stats": "Statistik",

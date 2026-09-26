@@ -4,6 +4,7 @@ import {
   renderSettingDefinitions,
   type SettingControlHost,
 } from "../vendor/kit-obsidian/settings_walker";
+import { githubHelpUrls, helpSettingDefinition } from "../vendor/kit-obsidian/help-setting";
 import type { LabSettings } from "../core/settings";
 import type LlmLabPlugin from "../main";
 
@@ -112,6 +113,16 @@ export class LabSettingTab extends PluginSettingTab implements SettingControlHos
       isPositiveNumber(v) ? undefined : t("settings.positiveNumber");
 
     return [
+      // UI-STANDARD §8 „Hilfe-Zeile": als erstes Element, vor jeder Überschrift.
+      helpSettingDefinition({
+        ...githubHelpUrls("llm-lab"),
+        texts: {
+          name: t("help.name"),
+          desc: t("help.desc"),
+          openDocs: t("help.openDocs"),
+          reportIssue: t("help.reportIssue"),
+        },
+      }),
       {
         name: t("settings.enabled.name"),
         desc: t("settings.enabled.desc"),

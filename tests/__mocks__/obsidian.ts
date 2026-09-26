@@ -178,3 +178,10 @@ export class Notice {
 
 // Kein `App`-Runtime-Export noetig: `type App` wird als Type-only-Import erasable
 // (isolatedModules) und existiert im kompilierten Test-Code nicht.
+
+export class App {}
+
+export class PluginSettingTab {
+  containerEl = {} as HTMLElement;
+  constructor(public app: unknown, public plugin: unknown) {}
+}
