@@ -6,6 +6,8 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.8.0] — 2026-09-26
+
 ### Added
 - Help row at the top of the settings with links to the documentation and the issue tracker (English and German), from `obsidian-kit` 0.43.0 (`help-setting.ts`, copied on its own with its origin stamp).
 
