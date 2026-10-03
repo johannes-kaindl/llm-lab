@@ -20,115 +20,113 @@ All notable changes to this project are documented here. The format follows
 ## [0.7.1] — 2026-09-24
 
 ### Changed
-- `authorUrl` im Manifest zeigt wieder auf das GitHub-Profil (Rückkehr in den Community Store); keine Funktionsänderung.
+- `authorUrl` in the manifest points to the GitHub profile again (return to the Community Store); no functional change.
 
 ## [0.7.0] — 2026-09-17
 
 ### Added
-- **README bebildert** (`docs/images/hero.png`, `rate-empty.png`, `rate-details.png`,
-  `settings.png` + Thumbnails) — reproduzierbar aufgenommen über den Aufnahme-Vertrag
-  `docs/images/README.md` und das Rezept `scripts/shots.ts` (`npm run shots`/`shots:check`),
-  eingebettet in `README.md` und `README.de.md`. Die vier alten Debug-Screenshots aus
-  `docs/images/welle3/` sind entfernt: deutsche Oberfläche, Fremdkanten, kein Vertrag.
+- **README illustrated** (`docs/images/hero.png`, `rate-empty.png`, `rate-details.png`,
+  `settings.png` + thumbnails) — captured reproducibly via the capture contract
+  `docs/images/README.md` and the recipe `scripts/shots.ts` (`npm run shots`/`shots:check`),
+  embedded in `README.md` and `README.de.md`. The four old debug screenshots from
+  `docs/images/welle3/` are removed: German UI, foreign edges, no contract.
 
 ### Changed
-- **`authorUrl` zeigt auf `https://jkaindl.de`** statt auf das aufgegebene GitHub-Profil
-  (Dach-Sollwert seit 2026-09-03); `tests/manifest.test.ts` prüft den neuen Wert.
+- **`authorUrl` points to `https://jkaindl.de`** instead of the abandoned GitHub profile
+  (target value of the umbrella repo since 2026-09-03); `tests/manifest.test.ts` checks the new value.
 
 ## [0.6.0] — 2026-09-17
 
 ### Fixed
-- **Zwei Leaves derselben Bewertungs-Ansicht teilten sich eine `RatePanel`-Instanz** (I2).
-  Layout-Wiederherstellung, Split oder „in neues Fenster verschieben" ließen die zweite
-  Leaf den DOM-Container der ersten überschreiben; ein `onClose()` konnte dadurch die
-  jeweils andere Leaf leeren. Jede Leaf bekommt jetzt ihre eigene Instanz (Factory statt
-  geteiltem Feld in `main.ts`).
-- **Fokus ging nach jedem Klick verloren** (M2) — `render()` fokussiert den Container
-  jetzt wieder, in beiden Zweigen (Liste UND Empty-State).
-- **`Enter`/`j`/`k` in einem Filter-Control wurden vom Tastatur-Handler abgefangen** (M3) —
-  `onKey` überspringt jetzt Ereignisse, deren Ziel ein `INPUT`/`SELECT`/`BUTTON`/`TEXTAREA`
-  ist.
-- **`LabView.getState()` verwarf, was `ItemView` selbst persistieren würde** (M4).
-- **Löschen kurz vor Mitternacht konnte fälschlich Erfolg melden** (M7) — ein Record, der
-  wegen fire-and-forget erst nach Mitternacht in die Folgetagsdatei geschrieben wurde,
-  wird jetzt auch dort gefunden; ohne Treffer meldet `removeRecord` jetzt `false` statt
-  stillschweigend `true`.
-- **`vaultSink` leitete ein Verzeichnis ohne Schrägstrich falsch ab** (M10) — heute
-  unerreichbar, die Annahme steht jetzt explizit in einer eigenen Funktion.
+- **Two leaves of the same rating view shared one `RatePanel` instance** (I2).
+  Restoring the layout, splitting or "move to new window" let the second leaf overwrite the
+  first one's DOM container; an `onClose()` could thereby empty the other leaf. Each leaf now
+  gets its own instance (factory instead of a shared field in `main.ts`).
+- **Focus was lost after every click** (M2) — `render()` now refocuses the container
+  again, in both branches (list AND empty state).
+- **`Enter`/`j`/`k` in a filter control were intercepted by the keyboard handler** (M3) —
+  `onKey` now skips events whose target is an `INPUT`/`SELECT`/`BUTTON`/`TEXTAREA`.
+- **`LabView.getState()` discarded what `ItemView` itself would persist** (M4).
+- **Deleting shortly before midnight could wrongly report success** (M7) — a record that,
+  because of fire-and-forget, was written to the next day's file only after midnight
+  is now found there too; with no match `removeRecord` now reports `false` instead of
+  silently returning `true`.
+- **`vaultSink` derived a directory without a slash incorrectly** (M10) — unreachable
+  today, the assumption is now stated explicitly in a function of its own.
 
 ### Changed
-- **„Bessere Antwort" im Vertiefungs-Modal nutzt die volle Modalbreite** statt der
-  schmalen Setting-Control-Spalte.
-- **GUI-Smoke liest `apiVersion` jetzt direkt aus `src/plugin_api.ts`** statt sie als Zahl
-  mitzuführen (I5) — war dreimal in Folge veraltet. Prüfpunkt 22 (Löschen) wählt seine
-  Zeile über `data-id` statt über die Position, damit eine Millisekunden-Kollision
-  zwischen zwei Testrecords den Punkt nicht zufällig rot macht (M5). Neuer Prüfpunkt 16b
-  öffnet zwei Leaves und schließt eine davon — Regressionsschutz für I2.
+- **"Better answer" in the details modal uses the full modal width** instead of the
+  narrow setting-control column.
+- **The GUI smoke now reads `apiVersion` directly from `src/plugin_api.ts`** instead of
+  carrying it as a number (I5) — it had gone stale three times in a row. Check 22 (delete) picks its
+  row via `data-id` instead of by position, so that a millisecond collision
+  between two test records does not turn the check red by chance (M5). New check 16b
+  opens two leaves and closes one of them — regression protection for I2.
 
 ## [0.5.0] — 2026-09-16
 
 ### Added
-- **Bewertungs-Ansicht.** Ein Tab im Hauptbereich listet aufgezeichnete Aufrufe, zeigt Prompt
-  und Antwort in Lesebreite und nimmt ein Urteil per Tastatur entgegen (`j`/`k` blättern,
-  `g` gut, `b` schlecht, `Entf` löschen). Bewertetes wird redigiert nach `dataset.jsonl`
-  kopiert — der Trace verfällt mit der Rotation, der Datensatz überlebt sie. Jede Aktion ist
-  zusätzlich als Befehl erreichbar.
-- **`apiVersion` 4: `turnId` auf `LabLogInput`.** Klammert mehrere LLM-Aufrufe, die zu einer
-  Nutzer-Handlung gehören (Agent-Loop mit Tool-Calls). Optional — ein Konsument, der nichts
-  meldet, verhält sich unverändert.
+- **Rating view.** A tab in the main area lists recorded calls, shows prompt
+  and response at reading width and accepts a verdict by keyboard (`j`/`k` to browse,
+  `g` good, `b` bad, `Del` delete). Rated items are copied to `dataset.jsonl` in redacted form
+  — the trace expires with the rotation, the dataset survives it. Every action is
+  also reachable as a command.
+- **`apiVersion` 4: `turnId` on `LabLogInput`.** Brackets several LLM calls that belong to one
+  user action (agent loop with tool calls). Optional — a consumer that reports nothing
+  behaves unchanged.
 
 ### Changed
-- **GUI-Smoke: der Prüfgegenstand kommt aus dem Lauf, nicht aus der Konvention.** Der
-  Deploy-Abgleich las `stagingVaultDir("llm-lab")`, während der Treiber per `--vault` an ein
-  beliebiges Fenster andockt — ein Lauf gegen einen fremden Vault hätte die Datei im
-  Staging-Vault geprüft und wäre grün durchgelaufen. Er steht jetzt hinter `attachTo` und
-  nimmt `app.vault.adapter.basePath` + `app.vault.configDir` aus der laufenden Instanz. Dazu
-  `requireEigenerBuild` (zentrale Brücke) gegen den Fall, für den `manifest.version` blind
-  ist: Store- und Repo-Build tragen dieselbe Nummer. Gegenprobe über alle vier Ausgänge und
-  einen Lauf gegen ein fremdes Fenster — s. `docs/SMOKE.md`.
+- **GUI smoke: the subject under test comes from the run, not from the convention.** The
+  deploy comparison read `stagingVaultDir("llm-lab")`, while the driver attaches via `--vault` to an
+  arbitrary window — a run against a foreign vault would have checked the file in the
+  staging vault and passed green. It now sits behind `attachTo` and
+  takes `app.vault.adapter.basePath` + `app.vault.configDir` from the running instance. Plus
+  `requireEigenerBuild` (central bridge) against the case `manifest.version` is blind
+  to: store and repo builds carry the same number. Counter-check across all four outcomes and
+  a run against a foreign window — see `docs/SMOKE.md`.
 
 ## [0.4.0] — 2026-08-30
 
 ### Added
-- `npm run smoke:e2e` (`scripts/e2e-crossplugin.ts`) — belegt die Strecke ueber die
-  echte Plugin-Grenze (vault-rag → `api.log()` → llm-lab → Platte), die beide
-  GUI-Smokes strukturell ueberspringen. Setzt beide Plugins installiert voraus und
-  ist deshalb nicht Teil von `gate`/`smoke:gui`.
+- `npm run smoke:e2e` (`scripts/e2e-crossplugin.ts`) — proves the path across the
+  real plugin boundary (vault-rag → `api.log()` → llm-lab → disk), which both
+  GUI smokes structurally skip. Requires both plugins to be installed and
+  is therefore not part of `gate`/`smoke:gui`.
 
 ### Changed
-- **BREAKING (`apiVersion` 2 → 3):** Der Prompt-Hash im Trace identifiziert jetzt eine
-  Prompt-**Fassung** statt eines Aufrufs. Konsumenten melden dafür den stabilen Anteil ihres
-  System-Prompts als `promptTemplate`; im Record heißt das Feld `promptTemplateHash` und
-  ersetzt `systemPromptHash`. Ohne gemeldeten `promptTemplate` entsteht kein Hash — ein
-  fehlendes Feld statt eines mehrdeutigen. Konsumenten, die strikt auf `apiVersion` 2 prüfen,
-  schweigen bis zu ihrem Nachzug.
+- **BREAKING (`apiVersion` 2 → 3):** The prompt hash in the trace now identifies a prompt
+  **version** instead of a call. For this, consumers report the stable part of their
+  system prompt as `promptTemplate`; in the record the field is called `promptTemplateHash` and
+  replaces `systemPromptHash`. Without a reported `promptTemplate` no hash is created — a
+  missing field instead of an ambiguous one. Consumers that check strictly for `apiVersion` 2
+  stay silent until they catch up.
 
 ## [0.3.0] — 2026-08-24
 
 ### Added
-- `LabLogInput.secrets` — ein aufrufendes Plugin kann seine Endpunkt-Schluessel
-  mitgeben; sie werden exakt maskiert und landen nie im Record.
-- `LabLogInput.contextPaths` plus die Einstellungen „Notizen aus diesen Ordnern nie
-  mitschreiben" und „Strenger Ordner-Ausschluss": ein ausgeschlossener Pfad
-  verhindert, dass ein Record ueberhaupt entsteht.
+- `LabLogInput.secrets` — a calling plugin can pass along its endpoint keys;
+  they are masked exactly and never end up in the record.
+- `LabLogInput.contextPaths` plus the settings "Never record notes from these folders"
+  and "Strict folder exclusion": an excluded path
+  prevents a record from being created at all.
 
 ### Changed
-- **BREAKING:** `apiVersion` 1 → 2. Konsumenten, die strikt auf 1 pruefen,
-  schweigen bis zum Nachzug (vault-rag zieht im selben Vorhaben nach).
-- `shouldLog` nimmt ein `LogDecisionInput` statt eines Feature-Strings.
+- **BREAKING:** `apiVersion` 1 → 2. Consumers that check strictly for 1
+  stay silent until they catch up (vault-rag follows in the same effort).
+- `shouldLog` takes a `LogDecisionInput` instead of a feature string.
 
 ### Fixed
-- Die Schluessel-Maskierung lief mit permanent leerer Liste und war damit real
-  wirkungslos (nur das BEARER-Muster griff) — dokumentiert als „Bekannte Luecke
-  in Slice 1", jetzt geschlossen.
-- Der in der Spec (§5.5) verlangte Ordner-Filter fehlte vollstaendig.
-- Die Grenze des Ordner-Filters war je *Plugin* formuliert (Settings-Tab, beide
-  READMEs) und legte damit „Plugin X meldet Pfade, also ist X abgedeckt" nahe.
-  Gemessen laeuft sie je **Aufruf**: derselbe vault-rag-Chat meldet nichts, wenn
-  keine Kontextnotiz angehaengt ist. Wortlaut praezisiert (kein Verhaltens-,
-  ein Zusagen-Fix).
-- Drei Testfaelle fuer die Schluessel-Maskierung ergaenzt (`\`, Zeilenumbruch,
-  Tabulator) — bis dahin deckte nur der Quote-Fall das JSON-Escaping ab.
+- Key masking ran with a permanently empty list and was thus effectively
+  ineffective (only the BEARER pattern took hold) — documented as "known gap
+  in Slice 1", now closed.
+- The folder filter required by the spec (§5.5) was missing entirely.
+- The folder filter's limit was phrased per *plugin* (settings tab, both
+  READMEs) and thereby suggested "plugin X reports paths, so X is covered".
+  Measured, it applies per **call**: the same vault-rag chat reports nothing if
+  no context note is attached. Wording clarified (not a behavior fix,
+  a promise fix).
+- Added three test cases for key masking (`\`, line break,
+  tab) — until then only the quote case covered the JSON escaping.
 
 ## [0.2.0] — 2026-08-23
 
