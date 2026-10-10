@@ -6,6 +6,8 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.9.0] — 2026-10-10
+
 ### Changed
 
 - **Masking of API keys and personal data in traces and datasets now comes from the shared code-kit module `redact` (code-kit 0.18.0).** The placeholders stay the same (`[EMAIL_1]`, `[IBAN_1]`, …) and so does the mask (`••••`). Visible differences: if one of your keys is the beginning of another, the longer one is now masked completely (before, the rest of it stayed readable in a trace); your own terms in the PII settings are de-duplicated and the longest is replaced first (with `Zitrone` and `Zitronenbaum`, the longer word is no longer cut in the middle); a mask is no longer expanded when it contains `$&`. E-mail detection is faster on very long runs of address characters, with the same matches.
