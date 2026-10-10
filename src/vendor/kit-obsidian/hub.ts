@@ -1,4 +1,4 @@
-// uebernommen aus obsidian-kit/src/obsidian/hub.ts@0.37.1, 2026-09-16
+// vendored from obsidian-kit@0.51.3, src/obsidian/hub.ts — do not hand-edit; re-vendor via tools/sync-kit.sh
 import { setIcon } from "obsidian";
 
 /**

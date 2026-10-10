@@ -181,6 +181,18 @@ export class Notice {
 
 export class App {}
 
+/** Stand-in fuer die Basisklasse des vendorten `folder-suggest` (Kit); nur das, was der Walker
+ *  beim Aufbau braucht — die Vorschlagsliste selbst misst das GUI-Smoke, nicht der Mock. */
+export abstract class AbstractInputSuggest<T> {
+  constructor(protected app: unknown, protected inputEl: unknown) {}
+  abstract getSuggestions(query: string): T[] | Promise<T[]>;
+  abstract renderSuggestion(value: T, el: unknown): void;
+  selectSuggestion(_value: T, _evt?: unknown): void {}
+  setValue(_v: string): void {}
+  getValue(): string { return ""; }
+  close(): void {}
+}
+
 export class PluginSettingTab {
   containerEl = {} as HTMLElement;
   constructor(public app: unknown, public plugin: unknown) {}

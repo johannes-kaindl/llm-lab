@@ -1,4 +1,4 @@
-// uebernommen aus obsidian-kit/src/obsidian/help-setting.ts@0.43.0, 2026-09-26
+// vendored from obsidian-kit@0.51.3, src/obsidian/help-setting.ts — do not hand-edit; re-vendor via tools/sync-kit.sh
 import { Setting } from "obsidian";
 import type { SettingDefinitionRender } from "obsidian";
 
