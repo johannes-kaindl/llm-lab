@@ -67,6 +67,17 @@ describe("redactPii", () => {
     expect(out.messages[0]?.content).toBe("Projekt [CUSTOM_1] laeuft");
   });
 
+  // Verhaltenswechsel (code-kit 0.18.0): eigene Begriffe werden dedupliziert und nach Laenge
+  // sortiert; frueher galt die Eingabereihenfolge, und "Zitrone" zerschnitt "Zitronenbaum".
+  it("ersetzt bei Begriffen, die Praefix voneinander sind, den laengeren ganz", () => {
+    const rec = makeRecord({
+      messages: [{ role: "user", content: "Zitronenbaum und Zitrone" }],
+      response: { content: "ok" },
+    });
+    const out = redactPii(rec, ["Zitrone", "Zitronenbaum", "Zitrone"]);
+    expect(out.messages[0]?.content).toBe("[CUSTOM_1] und [CUSTOM_2]");
+  });
+
   it("laesst Text ohne Treffer unveraendert", () => {
     const rec = makeRecord({
       messages: [{ role: "user", content: "nichts hier" }],

@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
-import { redactSecrets, redactRecordSecrets } from "../../src/core/redact_secrets";
+import { redactKeys as redactSecrets, redactKeysInValue as redactRecordSecrets } from "../../src/vendor/kit/redact";
 
-describe("redactSecrets", () => {
+describe("redactKeys (Kit)", () => {
   it("maskiert einen konfigurierten Schluessel", () => {
     expect(redactSecrets("token=sk-abcdefgh12345", ["sk-abcdefgh12345"]))
       .toBe("token=••••");
@@ -17,7 +17,7 @@ describe("redactSecrets", () => {
   });
 });
 
-describe("redactRecordSecrets", () => {
+describe("redactKeysInValue (Kit)", () => {
   it("greift ueber den ganzen Record, nicht Feld fuer Feld", () => {
     const rec = { a: "key sk-abcdefgh12345", nested: { b: "auch sk-abcdefgh12345" } };
     const out = redactRecordSecrets(rec, ["sk-abcdefgh12345"]);
@@ -72,5 +72,18 @@ describe("redactRecordSecrets", () => {
     expect(out.messages.length).toBe(2);
     expect(out.messages[0].content).toBe("Frage mit token •••• drin");
     expect(out.messages[1].content).toBe("Antwort mit •••• auch");
+  });
+});
+
+// Verhaltenswechsel gegenueber der alten Fassung (code-kit 0.18.0), absichtlich anders gepinnt.
+describe("Kit-Fassung: gemessene Unterschiede", () => {
+  it("maskiert einen Schluessel ganz, auch wenn ein anderer sein Praefix ist", () => {
+    const out = redactSecrets("key sk-praefix-12345678-SECRETSUFFIX99 rejected", ["sk-praefix-12345678", "sk-praefix-12345678-SECRETSUFFIX99"]);
+    expect(out).toBe("key •••• rejected");
+    expect(out).not.toContain("SECRETSUFFIX99");
+  });
+
+  it("laesst `$&` in der Maske woertlich stehen, statt es zu expandieren", () => {
+    expect(redactSecrets("token=sk-abcdefgh12345", ["sk-abcdefgh12345"], { mask: "<$&>" })).toBe("token=<$&>");
   });
 });

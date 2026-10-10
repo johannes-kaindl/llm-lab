@@ -97,11 +97,7 @@ Nicht verhandelbare Eigenschaften:
 
 ### Verhältnis zum Kit
 
-- **`redactSecrets`/`redactRecordSecrets`** (`src/core/redact_secrets.ts`) ist **übernommen aus
-  `vault-crews/src/core/redact.ts`, 2026-08-22** (Herkunftsstempel in der ersten Zeile) — 2.
-  Exemplar dieser Lösung, s. `../REGISTRY.md`. Geändert gegenüber der Vorlage: nimmt eine
-  Schlüsselliste (`string[]`) statt `EndpointConfig[]` entgegen — LLM Lab kennt die
-  Endpunkt-Typen seiner Konsumenten nicht und soll sie nicht kennen.
+- **Die Redaktion kommt seit Welle 16 aus code-kit `redact` (0.18.0), vendort nach `src/vendor/kit/redact.ts`:** `redactKeysInValue` (Schlüssel, wirft fail-closed — `TraceStore.writeNow` fängt) und `createPiiRedactor({ extra })` (PII mit record-weiten Platzhaltern). Die plugin-eigene `redact_secrets.ts` ist weg, `redact_pii.ts` bleibt als dünner Mantel um den Kit-Redaktor, weil er den plugin-eigenen `TraceRecord` trägt. Die Kopier-Kette mit `vault-crews` (Übernahme 2026-08-22) endet damit.
 - **Der REGISTRY-Kandidat `TraceStore`** (`neurovim-standalone`) wird **nicht** eingelöst: 23
   Zeilen ohne Rotation, ohne Schema, ohne Redaktion. Was hier entsteht, ist reicher und bleibt
   zunächst im Lab, nicht im Kit. Der Kandidaten-Eintrag bleibt offen.
@@ -245,7 +241,7 @@ Geschlossen ist die Lücke, weil der Aufrufer seine Schlüssel jetzt mitgeben ka
 das Lab sie kennt. Der Satz **„Mechanismus läuft unbedingt ≠ Ergebnis ist garantiert"** gilt
 damit weiter, nur anders aufgelöst: er hing vorher an einer Lücke im Vertrag, jetzt hängt er
 am Aufrufer — ein Konsument, der `secrets` nicht befüllt, bekommt weiterhin nur das
-`BEARER`-Muster (`redact_secrets.ts`), das einen Token trifft, der wörtlich in
+`BEARER`-Muster (Kit `redact`), das einen Token trifft, der wörtlich in
 `Bearer <token>`-Form im aufgezeichneten Text auftaucht.
 
 **Lücke 2 — Ordner-Ausschluss — geschlossen über `LabLogInput.contextPaths` plus zwei
@@ -277,12 +273,8 @@ core/
                     `promptTemplate`, nicht mehr ueber die System-Nachricht) · hostOf
                     (Host+Port aus einer URL, faellt auf "unbekannt" zurueck statt zu
                     werfen) · buildTraceRecord.
-  redact_secrets.ts redactSecrets/redactRecordSecrets — Schlüssel-Maskierung, Lauf ist
-                    unbedingt; die Liste ist die Vereinigung aus deps.secrets() (leer) und
-                    den Aufruf-Schlüsseln (LabLogInput.secrets). Ohne Aufruf-Schlüssel wirkt
-                    nur das BEARER-Muster — s. „Bekannte Lücken in Slice 1 — beide geschlossen" oben.
-  redact_pii.ts     redactPii — Muster-Maskierung mit record-weiten Platzhaltern, läuft nur
-                    wenn redactPiiInTrace gesetzt ist (für den rohen Trace).
+  redact_pii.ts     redactPii — dünner Mantel um den Kit-Redaktor (Muster-Maskierung mit record-weiten Platzhaltern, läuft nur
+                    wenn redactPiiInTrace gesetzt ist (für den rohen Trace). Schlüssel-Maskierung: Kit `redactKeysInValue`, Lauf ist unbedingt; die Liste ist die Vereinigung aus deps.secrets() (leer) und den Aufruf-Schlüsseln (LabLogInput.secrets); ohne Aufruf-Schlüssel wirkt nur das BEARER-Muster — s. „Bekannte Lücken in Slice 1 — beide geschlossen“ oben.
   rotation.ts       planRotation — reine Entscheidung, welche Trace-Dateien weg müssen
                     (Alter + Größengrenze, heutige Datei geschützt), `today` als Parameter
                     statt `Date` für Zeitreise-freie Tests.
@@ -344,24 +336,13 @@ plugin_api.ts       createLlmLabApi — der öffentliche Vertrag (s. oben).
 main.ts             Plugin-Entry: Sprache setzen, Settings laden, TraceStore/API verdrahten,
                     Statusleiste, toggle-pause-Command, Settings-Tab registrieren, Ribbon-Icon
                     + View + vier Commands fuer die Bewertungs-Ansicht verdrahten.
-vendor/kit/i18n.ts          Verbatim-Snapshot aus obsidian-kit — nie von Hand editieren.
-vendor/kit-obsidian/
-  settings_walker.ts        Übernommen aus obsidian-kit@0.27.0 (Herkunftsstempel in Zeile 1),
-                            17. Consumer des Musters. Einzige Abweichung: der `folder`-Zweig
-                            ist entfernt (zieht FolderSuggest nach; der Ordner-Ausschluss ist
-                            eine `textarea`, kein `folder`-Control).
-                            Nie von Hand editieren — wächst der Bedarf, neu aus dem Kit ziehen.
-  hub.ts                    Übernommen aus obsidian-kit@0.37.1 (Herkunftsstempel in Zeile 1):
-                            die Hub-Tab-Leiste (UI-STANDARD §8, verbindlich) — Tabs + ein
-                            Content-Bereich, in den jedes Panel genau einmal gemountet wird
-                            ("mount-once"), Tab-Wechsel blendet nur um, damit Panel-Zustand
-                            (Filter, Auswahl, Scrollposition) ihn überlebt. Nie von Hand
-                            editieren.
-  confirm.ts                Übernommen aus obsidian-kit@0.37.1 (Herkunftsstempel in Zeile 1):
-                            confirmAction() — Bestätigungs-Modal hinter einer Promise-Fassade
-                            (REGISTRY „Bestätigungs-Modal"). Trägt `applyDestructive()` für
-                            einen versionsunabhängigen destruktiven Button. Nie von Hand
-                            editieren.
+vendor/kit/ und vendor/kit-obsidian/  Verbatim-Snapshots über `tools/kit-sync.json` (seit Welle 16, vorher
+                            von Hand mit Herkunftsstempel): code-kit 0.18.0 (`i18n`, `redact`) und
+                            obsidian-kit 0.51.3 (`confirm`, `folder-suggest`, `help-setting`, `hub`,
+                            `settings_walker`). Nie von Hand editieren, `sh tools/sync-kit.sh --check`
+                            misst Drift. Der `folder`-Zweig des Walkers ist wieder drin
+                            (`folder-suggest` wird mitvendort, der obsidian-Mock trägt
+                            `AbstractInputSuggest`).
 ```
 
 **Zwei Regeln, die beim Anfassen des Settings-Tabs gelten** (beide gemessen, nicht vermutet):
@@ -487,7 +468,7 @@ npm run version-bump / preflight / release   # delegieren ans zentrale ../tools/
   `setIcon`) und lag nur deshalb getrackt im Repo-Root, weil `npm run deploy` und
   `.github/workflows/release.yml` sie als Pflicht-Asset behandeln (kanonische Vorlage) — ohne
   die Datei würde beides brechen. Mit der Bewertungs-Ansicht kam eigenes UI dazu: die Datei
-  trägt jetzt die Hub-Tab-Leiste (Kopie aus `obsidian-kit@0.37.1`, Herkunftsstempel im
+  trägt jetzt die Hub-Tab-Leiste (vendort aus `obsidian-kit`, Herkunftsstempel im
   Dateikopf — das Kit injiziert kein CSS, Consumer übernehmen die Regeln in ihre eigene
   `styles.css`) und das Bewerten-Panel-CSS. Nur Theme-CSS-Variablen, keine festen Farben
   (UI-STANDARD §3).

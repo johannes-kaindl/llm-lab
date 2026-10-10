@@ -1,5 +1,5 @@
 import type { TraceRecord } from "./types";
-import { redactRecordSecrets } from "./redact_secrets";
+import { redactKeysInValue } from "../vendor/kit/redact";
 import { redactPii } from "./redact_pii";
 import { planRotation, type RotationLimits, type TraceFile } from "./rotation";
 
@@ -79,7 +79,7 @@ export class TraceStore {
    *  laeuft, der Muster umschreibt.** `redactPii`s PHONE-Muster ist ein blanker
    *  Ziffernlauf und trifft dabei auch auf die Ziffernfolge INNERHALB eines API-Schluessels;
    *  laeuft PII zuerst, zerreisst es den Schluessel in Fragmente, und die anschliessende
-   *  exakte Suche von `redactRecordSecrets` findet das Original-Literal nicht mehr — die
+   *  exakte Suche von `redactKeysInValue` findet das Original-Literal nicht mehr — die
    *  Fragmente landen ungeschwaerzt auf der Platte. Umgekehrt ist unbedenklich: eine
    *  Muster-Ersetzung zerreisst nichts, was noch geschwaerzt werden muesste, denn nichts,
    *  was die Schluessel-Maskierung erzeugt (`••••`, `Bearer ••••`), matcht EMAIL/IBAN/
@@ -87,7 +87,7 @@ export class TraceStore {
   async writeNow(record: TraceRecord, opts?: WriteOptions): Promise<void> {
     return this.serialize(async () => {
       try {
-        const afterSecrets = redactRecordSecrets(record, opts?.secrets ?? []);
+        const afterSecrets = redactKeysInValue(record, opts?.secrets ?? []);
         const safe = opts?.redactPii ? redactPii(afterSecrets, opts.piiTerms ?? []) : afterSecrets;
         await this.sink.append(`${this.dir()}/${this.today()}.jsonl`, JSON.stringify(safe) + "\n");
         await this.rotateNow();
