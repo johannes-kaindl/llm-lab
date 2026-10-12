@@ -6,6 +6,11 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Changed
+
+- Kit pins raised to `obsidian-kit` 0.56.0 and `code-kit` 0.23.0 (from 0.51.3 and 0.18.0). Nothing you can see changes: the trace log masks keys and personal data exactly as before. The plugin vendors only `redact` and the settings/hub modules from the kit; the broader `Bearer` rule of code-kit 0.21.0 (eight characters, any capitalization, also hits prose such as "Bearer authentication") belongs to the kit's text redaction, which the trace log does not use, so log entries are not masked more widely. The linear `<think>` removal of code-kit 0.22.0 is in a module this plugin does not vendor.
+- The settings screenshot in the README now shows the current Settings page, including the Help row.
+
 ## [0.9.0] — 2026-10-10
 
 ### Changed
