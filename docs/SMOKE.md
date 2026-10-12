@@ -16,36 +16,29 @@ und nicht in der Verdrahtung eines Konsumenten.
 
 ## Aufruf
 
-⚠️ **Zuerst prüfen, wer sonst an Obsidian hängt.** Obsidian ist Single-Instance — ein
-`quit` trifft die Instanz, an der möglicherweise eine andere Session arbeitet, und zerstört
-deren Zustand. Der eigene Lauf ist danach sauber grün; der Schaden entsteht woanders und
-fällt nicht auf.
-
-```bash
-lsof -nP -iTCP:9222 -sTCP:LISTEN >/dev/null && echo "läuft bereits — NICHT beenden"
-```
-
-Hört der Port schon, dann **mitnutzen statt neu starten**: ein eigenes Fenster per
-`vault-open` über IPC öffnen — der Treiber wählt es über `--vault` aus, nicht über die
-Reihenfolge. Ein Neustart ist für diesen Treiber **keine** Betriebsbedingung (anders als für
-`shots`-Rezepte, die je Bild einen frischen Start brauchen). ⚠️ Die Port-Prüfung ersetzt die
-Frage nicht: sie zeigt aktive CDP-Treiber, aber nicht, wer ein Fenster offen hält oder auf
-den Port wartet.
-
-Erst wenn nichts läuft — oder nach Absprache mit dem, der es benutzt — gilt das Rezept unten.
+Der Treiber läuft gegen eine **Zweitinstanz** mit eigenem Profil und eigenem Port; die reguläre
+Instanz (9222) wird nie angefasst und nie beendet. `--port` ist Pflicht. Vertrauensdialog und
+Restricted Mode eines frischen Profils erledigt `bereiteInstanzVor` aus der zentralen Brücke.
 
 ```bash
 export STAGING_VAULTS_DIR=<verzeichnis ausserhalb der Repos>   # Ort: ../../AGENTS.md
+npm run build && npm run smoke:gui -- --setup                   # Aufnahme-Vault aus docs/images/fixture/ bauen
 
-# einmalig / nach Fixture-Änderungen: Aufnahme-Vault aus docs/images/fixture/ bauen
-npm run build && npm run smoke:gui -- --setup
-#   danach den Vault in ~/Library/Application Support/obsidian/obsidian.json auf
-#   "open": true setzen. Läuft schon ein Obsidian, reicht es, den Vault dort zusätzlich
-#   zu öffnen; nur wenn nichts läuft (oder nach Absprache):
-#   pkill -x Obsidian && open -a Obsidian --args --remote-debugging-port=9222
-
-npm run smoke:gui -- --vault llm-lab
+UD=/tmp/obs-test-llm-lab; mkdir -p "$UD"
+lsof -nP -iTCP:9397 -sTCP:LISTEN && echo "Port belegt — anderen nehmen"
+pgrep -f "user-data-dir=$UD" && echo "Profil belegt — $UD-w19 nehmen, nie beenden"
+cp ~/Library/Application\ Support/obsidian/obsidian-*.asar "$UD"/   # aktuelle Version statt gebündelter
+node -e 'const p=process.env.STAGING_VAULTS_DIR+"/llm-lab";require("fs").writeFileSync(process.argv[1]+"/obsidian.json",JSON.stringify({vaults:{"llm-lab":{path:p,ts:Date.now(),open:true}},language:"en"}))' "$UD"
+/Applications/Obsidian.app/Contents/MacOS/Obsidian --user-data-dir="$UD" --remote-debugging-port=9397 &   # je Messlauf frischer Prozess, PID merken
+python3 ~/.claude/hooks/obsidian-cdp-lock.py acquire --label llm-lab --intent "GUI-Smoke :9397" --exclusive focus --port 9397 --ttl 300
+npm run smoke:gui -- --port 9397 --vault llm-lab
+python3 ~/.claude/hooks/obsidian-cdp-lock.py release           # danach nur die eigene PID beenden
 ```
+
+Der erste Lauf nach der Profilanlage ist ein Aufwärmlauf und zählt nicht. Die Bilanz zählt in
+vier Zuständen (grün · rot · übersprungen · nichts gemessen), Nenner ist die Soll-Liste `PUNKTE`;
+ein Abbruch endet mit Exit 2. Der Ende-zu-Ende-Lauf `npm run smoke:e2e -- --port 9397` braucht
+ebenfalls `--port`.
 
 `--vault` matcht exakt gegen `app.vault.getName()` (den Vault-**Ordnernamen**).
 `--keep` lässt Einstellungen und erfundene Trace-Dateien stehen, `--ignore-deploy` übergeht

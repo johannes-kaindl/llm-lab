@@ -17,7 +17,7 @@
  * ein zweiter Lauf im selben Fenster; ein eigener Pruefpunkt am Schluss misst es mit.
  *
  * ```bash
- * npm run smoke:e2e            # Vault llm-lab, Port 9222
+ * npm run smoke:e2e -- --port <port>   # Vault llm-lab; --port ist Pflicht (Zweitinstanz, nie 9222)
  * ```
  *
  * **Der Treiber wartet nach dem Tippen auf die Kontext-Chips, statt sofort zu senden.**
@@ -36,7 +36,13 @@ const record = (t: string, pass: boolean, d = "") => {
   console.log(`  ${pass ? "✓" : "✗"} ${t}${d ? " — " + d : ""}`);
 };
 
-const cdp = await Cdp.attach(9222, "llm-lab");
+const portIdx = process.argv.indexOf("--port");
+const port = Number(portIdx >= 0 ? process.argv[portIdx + 1] : undefined);
+if (!Number.isInteger(port) || port < 1024 || port > 65535) {
+  console.error("Abbruch: --port <1024-65535> ist Pflicht (Port der eigenen Zweitinstanz; 9222 gehoert der regulaeren Instanz).");
+  process.exit(2);
+}
+const cdp = await Cdp.attach(port, "llm-lab");
 console.log("\nEnde-zu-Ende: vault-rag → Plugin-Grenze → llm-lab\n");
 
 // 0. Beide Plugins neu laden — der Hash-Guard sagt nichts darueber, was geladen IST.

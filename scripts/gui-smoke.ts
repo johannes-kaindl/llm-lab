@@ -17,39 +17,35 @@
  * Abnahme der vault-rag-Verdrahtung, sondern deren Voraussetzung: was hier rot ist, ist im
  * Lab kaputt und nicht in der Verdrahtung.
  *
- * ## Voraussetzung
+ * ## Lauf (Zweitinstanz, eigenes Profil, eigener Port — die regulaere Instanz wird nie angefasst)
  *
- * ⚠️ **Zuerst pruefen, wer sonst an Obsidian haengt.** Obsidian ist Single-Instance — ein
- * `quit` trifft die Instanz, an der moeglicherweise eine andere Session arbeitet, und
- * zerstoert deren Zustand. Der eigene Lauf ist danach sauber gruen; der Schaden entsteht
- * woanders und faellt nicht auf.
- *
- * ```bash
- * lsof -nP -iTCP:9222 -sTCP:LISTEN >/dev/null && echo "laeuft bereits — NICHT beenden"
- * ```
- *
- * Hoert der Port schon, dann **mitnutzen statt neu starten**: ein eigenes Fenster per
- * `vault-open` ueber IPC oeffnen, dann `attachTo("workspace", port, vault)` — der Vault-Name
- * waehlt, nicht die Reihenfolge. Genau das tut dieser Treiber ohnehin (`--vault`), ein
- * Neustart ist fuer ihn also KEINE Betriebsbedingung. ⚠️ Die Port-Pruefung ersetzt die Frage
- * nicht: sie zeigt aktive CDP-Treiber, aber nicht, wer ein Fenster offen haelt oder auf den
- * Port wartet.
- *
- * Erst wenn nichts laeuft — oder nach Absprache mit dem, der es benutzt — gilt das Rezept
- * unten. Obsidian muss dann mit offenem Debug-Port laufen; das ist der einzige Handgriff,
- * der Handarbeit bleibt, weil die App dafuer neu starten muss:
+ * `--port` ist Pflicht (kein Standardport; 9222 gehoert der regulaeren Instanz). Gemessen wird in einer
+ * Zweitinstanz mit eigenem Profil: Vertrauensdialog und Restricted Mode eines frischen Profils erledigt
+ * `bereiteInstanzVor` (Bruecke) vor dem ersten Punkt.
  *
  * ```bash
- * osascript -e 'quit app "Obsidian"'
- * open -a Obsidian --args --remote-debugging-port=9222
+ * echo "$STAGING_VAULTS_DIR"                                     # muss gesetzt sein (~/.zshenv)
+ * UD=/tmp/obs-test-llm-lab; mkdir -p "$UD"
+ * lsof -nP -iTCP:9397 -sTCP:LISTEN && echo "Port belegt — anderen nehmen"
+ * pgrep -f "user-data-dir=$UD" && echo "Profil belegt — $UD-w19 nehmen, nie beenden"
+ * cp ~/Library/Application\ Support/obsidian/obsidian-*.asar "$UD"/   # aktuelle Version statt gebuendelter
+ * node -e 'const p=process.env.STAGING_VAULTS_DIR+"/llm-lab";require("fs").writeFileSync(process.argv[1]+"/obsidian.json",JSON.stringify({vaults:{"llm-lab":{path:p,ts:Date.now(),open:true}},language:"en"}))' "$UD"
+ * npm run build && npm run smoke:gui -- --setup                  # Vault aus dem Fixture bauen
+ * /Applications/Obsidian.app/Contents/MacOS/Obsidian --user-data-dir="$UD" --remote-debugging-port=9397 &   # je Messlauf ein frischer Prozess; PID merken
+ * python3 ~/.claude/hooks/obsidian-cdp-lock.py acquire --label llm-lab --intent "GUI-Smoke :9397" --exclusive focus --port 9397 --ttl 300
+ * npm run smoke:gui -- --port 9397 --vault llm-lab
+ * python3 ~/.claude/hooks/obsidian-cdp-lock.py release           # und nur die eigene PID beenden
  * ```
+ *
+ * Der erste Lauf nach der Profilanlage ist ein Aufwaermlauf und zaehlt nicht.
+ *
+ * Bilanz in vier Zustaenden (CORE-TEST-19, `createBilanz`): gruen · rot · uebersprungen · nichts gemessen.
+ * Nenner ist `PUNKTE`; ein nie aufgezeichneter Punkt zaehlt als „nichts gemessen“ (Exit 1), ein Abbruch ist Exit 2.
  *
  * Der Aufnahme-Vault wird aus dem getrackten Fixture gebaut (`docs/images/fixture/`):
  *
  * ```bash
  * export STAGING_VAULTS_DIR=<verzeichnis ausserhalb der Repos>   # Ort: ../AGENTS.md
- * npm run build && npm run smoke:gui -- --setup      # Vault bauen, danach Obsidian oeffnen
- * npm run smoke:gui -- --vault llm-lab               # Lauf
  * ```
  *
  * `--vault` matcht exakt gegen `app.vault.getName()` (den Vault-**Ordnernamen**), nicht als
@@ -78,7 +74,8 @@ import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
-import { Cdp, attachTo, pollUntil, releaseAlwaysOnTop, requireVisible } from "../../tools/obsidian-cdp/cdp.js";
+import { Cdp, attachTo, bereiteInstanzVor, pollUntil, releaseAlwaysOnTop, requireVisible } from "../../tools/obsidian-cdp/cdp.js";
+import { createBilanz, parseArgs, runDriver } from "../../tools/obsidian-cdp/bilanz.js";
 import { buildVault, requireEigenerBuild, stagingVaultDir } from "../../tools/obsidian-cdp/vault.js";
 // Befund I5: die apiVersion war dreimal veraltet, weil der Treiber sie als eigene Zahl
 // mitfuehrte. Ein Lesezugriff auf die Quelle statt einer Kopie schliesst die Luecke
@@ -95,8 +92,56 @@ const EXCLUDED_FEATURE = "settings-probe";
 
 // --- Pruefpunkte ------------------------------------------------------------
 
-interface Check { name: string; passed: boolean; detail: string }
-const results: Check[] = [];
+/** Soll-Liste aller Pruefpunkte (der Nenner der Bilanz), in Reihenfolge des Laufs. */
+const PUNKTE = [
+  "Anbieter-Vertrag haengt am Plugin-Objekt (apiVersion, status, log)",
+  "log() gibt die id SYNCHRON zurueck (kein Promise)",
+  "Statusleiste zeigt Zustand als Icon UND Text",
+  "Pause-Command schaltet Icon, Text und status().recording um",
+  "Pausiert schreibt log() nichts",
+  "Pause laesst sich zurueckschalten",
+  "Pause ueberlebt einen Neustart NICHT (Sitzungszustand, nicht persistiert)",
+  "log() landet als JSONL-Zeile im Vault (der ungetestete Datei-Weg)",
+  "Der Endpunkt landet als Host+Port, ohne Pfad und Query",
+  "adapter.stat() liefert fuer eine Datei unter .obsidian/ eine echte Groesse",
+  "Groessenbasierte Rotation raeumt wirklich weg (haengt an stat().size)",
+  "Altersbasierte Rotation raeumt wirklich weg",
+  "Die heutige Datei ueberlebt jede Rotation",
+  `Ausgeschlossenes Feature ("${EXCLUDED_FEATURE}") wird nicht mitgeschrieben`,
+  "Ausgeschaltet wird gar nichts geschrieben, und status() sagt das auch",
+  "Ein Bearer-Token im aufgezeichneten Text wird maskiert",
+  "Ein per log() mitgelieferter Endpunkt-Schluessel wird exakt maskiert",
+  "Der mitgelieferte Schluessel steht selbst nicht im Record",
+  "Ein Pfad ausserhalb der ausgeschlossenen Ordner wird mitgeschrieben",
+  "Ein Pfad aus einem ausgeschlossenen Ordner erzeugt keinen Record",
+  "PII steht per Default im rohen Trace (dokumentierte Asymmetrie, keine Luecke)",
+  "PII-Maskierung wirkt und vergibt record-weit denselben Platzhalter",
+  "Der PII-Schalter steht UEBER dem Feld, das nur mit ihm wirkt",
+  "Eine eigene Zeile nennt den Ablageort im Klartext",
+  "Die Grenzen der Maskierung stehen sichtbar im Tab",
+  "excludedFolders-Zeile steht am nativen Pfad",
+  "strictFolderExclusion-Zeile steht am nativen Pfad",
+  "Die render-Hatch der Ordner-Filter-Grenzen steht sichtbar im nativen Pfad",
+  "getSettingDefinitions() liefert Zeilen und der Host hat sie uebernommen",
+  "Nativer Pfad und display()-Fallback zeichnen dieselbe Zeilenzahl",
+  "Die MB-Anzeige uebersetzt in beide Richtungen (angezeigt MB, gespeichert Bytes)",
+  "Eine ungueltige Zahl wird auch ohne validate() verworfen (Fallback-Pfad)",
+  "excludedFolders-Zeile steht am Fallback-Pfad",
+  "strictFolderExclusion-Zeile steht am Fallback-Pfad",
+  "Die render-Hatch der Ordner-Filter-Grenzen steht sichtbar im Fallback-Pfad",
+  "Einstellungen sind ueber die Einstellungs-Suche auffindbar",
+  "log() wirft auch bei fehlerhaftem Input nicht",
+  "Ohne aktives Lab findet ein Konsument nichts und bricht nicht",
+  "View oeffnet ueber den Befehl llm-lab:open-view und dedupliziert",
+  "Zwei Leaves derselben View teilen keine RatePanel-Instanz (Split + Schliessen)",
+  "View liegt im Hauptbereich (nicht unter .mod-left-split/.mod-right-split)",
+  "Hub-Tab-Leiste (.okit-hub-tabs) ist vorhanden",
+  "Bewerten-Aktionen sind sichtbar (nicht nur im DOM)",
+  "Empty-State erscheint bei leerem Datensatz und traegt Text",
+  "Eine Bewertung landet in dataset.jsonl mit der Trace-id und verdict \"up\"",
+  "Loeschen entfernt die Zeile aus der Trace-Datei, uebrige Zeilen bleiben",
+] as const;
+const { record, unmeasured, abschluss } = createBilanz({ punkte: PUNKTE });
 
 /**
  * Die `ungeklaert`-Warnung des Herkunfts-Guards. Sie gehoert in die ABSCHLUSSZEILE, nicht nur
@@ -105,15 +150,6 @@ const results: Check[] = [];
  */
 let herkunftsWarnung: string | null = null;
 
-function record(name: string, passed: boolean, detail: string): void {
-  results.push({ name, passed, detail });
-  console.log(`${passed ? "  ✓" : "  ✗"} ${name}${detail ? ` — ${detail}` : ""}`);
-}
-
-function skip(name: string, grund: string): void {
-  console.log(`  – ${name}: uebersprungen — ${grund}`);
-}
-
 /** UTC-Tag, genau wie `main.ts` ihn bildet (`new Date().toISOString().slice(0,10)`).
  *  Lokale Zeit waere hier falsch: der Store schreibt nach UTC-Datum, und um 01:30 CEST
  *  wuerde ein lokal gerechneter Treiber die Datei von morgen suchen. */
@@ -121,12 +157,6 @@ function utcDay(offsetDays = 0): string {
   const d = new Date(Date.now() + offsetDays * 86_400_000);
   return d.toISOString().slice(0, 10);
 }
-
-const arg = (name: string): string | undefined => {
-  const i = process.argv.indexOf(name);
-  return i >= 0 ? process.argv[i + 1] : undefined;
-};
-const flag = (name: string): boolean => process.argv.includes(name);
 
 interface Settings {
   enabled: boolean;
@@ -140,13 +170,13 @@ interface Settings {
 }
 
 async function main(): Promise<void> {
-  const port = Number(arg("--port") ?? 9222);
-  const vaultName = arg("--vault") ?? REPO_NAME;
-  const keep = flag("--keep");
+  const args = parseArgs(process.argv.slice(2));
+  const vaultName = args.value("vault") ?? REPO_NAME;
+  const keep = args.has("keep");
   const repoRoot = process.cwd();
   const vaultDir = process.env.SMOKE_VAULT_DIR ?? stagingVaultDir(REPO_NAME);
 
-  if (flag("--setup")) {
+  if (args.has("setup")) {
     for (const zeile of buildVault({
       repoRoot,
       vaultDir,
@@ -157,20 +187,23 @@ async function main(): Promise<void> {
     return;
   }
 
+  const port = Number(args.value("port"));
+  if (!Number.isInteger(port) || port < 1024 || port > 65535) {
+    throw new Error("--port <1024-65535> ist Pflicht (kein Standardport: 9222 gehoert der regulaeren Instanz). Beispiel: npm run smoke:gui -- --port 9397 --vault llm-lab");
+  }
   const cdp = await attachTo("workspace", port, vaultName);
   if (!cdp) {
     throw new Error(
       `Kein Obsidian-Fenster fuer Vault "${vaultName}" auf Port ${port}.\n`
-      + "  Laeuft dort schon ein Obsidian mit ANDEREN Vaults: NICHT beenden — ein Quit\n"
-      + "  zerstoert den Zustand einer fremden Session, und der eigene Lauf ist danach\n"
-      + "  trotzdem gruen. Stattdessen ein eigenes Fenster dazuhaengen (vault-open per IPC).\n"
-      + "  Hoert der Port gar nicht (lsof -nP -iTCP:9222 -sTCP:LISTEN), dann neu starten:\n"
-      + "    osascript -e 'quit app \"Obsidian\"' && open -a Obsidian --args --remote-debugging-port=9222",
+      + "  Die Zweitinstanz laeuft nicht (eigenes Profil, --remote-debugging-port, Rezept im Dateikopf).\n"
+      + "  Eine fremde Instanz wird NIE beendet: ein Quit zerstoert den Zustand einer fremden Session.",
     );
   }
   // Ein Fenster im Hintergrund liefert einen leeren DOM, waehrend die App-API korrekt
   // antwortet — man debuggt dann ein Phantom.
   await requireVisible(cdp);
+  // Vertrauensdialog, Restricted Mode, Plugin laden (frisches Profil): zentrale Bruecke.
+  const instanz = await bereiteInstanzVor(cdp, { pluginIds: [PLUGIN_ID], nurVault: REPO_NAME, sprache: "en" });
 
   // Der Pfad kommt aus der LAUFENDEN Instanz, nicht aus `stagingVaultDir(REPO_NAME)`.
   // Das ist der ganze Punkt und es ist load-bearing: `--vault` dockt an ein BELIEBIGES
@@ -201,7 +234,7 @@ async function main(): Promise<void> {
   const abweichend = ["main.js", "manifest.json", "styles.css"].filter(
     (f) => hash(join(repoRoot, f)) !== hash(join(deployDir, f)),
   );
-  if (abweichend.length && !flag("--ignore-deploy")) {
+  if (abweichend.length && !args.has("ignore-deploy")) {
     throw new Error(
       `Der Vault traegt einen anderen Stand als der Arbeitsbaum (${abweichend.join(", ")}).\n`
       + `  npm run build && OBSIDIAN_PLUGIN_DIR="${deployDir}" npm run deploy\n`
@@ -240,7 +273,7 @@ async function main(): Promise<void> {
       };
     `);
     if (!vorhanden.ok) {
-      throw new Error(`Plugin "${PLUGIN_ID}" ist im Vault "${vaultName}" nicht aktiv — in den Community-Plugins einschalten.`);
+      throw new Error(`Plugin "${PLUGIN_ID}" ist im Vault "${vaultName}" nicht aktiv — ${instanz.hinweis}.`);
     }
 
     // Der Hash-Guard oben vergleicht nur DATEIEN (Arbeitsbaum vs. Vault), nicht was Obsidian
@@ -593,7 +626,15 @@ async function main(): Promise<void> {
       if (settingsCdp) { tabCdp = settingsCdp; tab = await settingsCdp.evaluate(TAB_LESEN(base)); }
     }
     if (!tab.da) {
-      skip("Einstellungs-Tab", "weder Modal noch Einstellungs-Fenster gefunden");
+      // Gegenstand nicht erreicht: die sechs Punkte dieses Blocks sind NICHT gemessen (nicht „uebersprungen“).
+      for (const n of [
+        "Der PII-Schalter steht UEBER dem Feld, das nur mit ihm wirkt",
+        "Eine eigene Zeile nennt den Ablageort im Klartext",
+        "Die Grenzen der Maskierung stehen sichtbar im Tab",
+        "excludedFolders-Zeile steht am nativen Pfad",
+        "strictFolderExclusion-Zeile steht am nativen Pfad",
+        "Die render-Hatch der Ordner-Filter-Grenzen steht sichtbar im nativen Pfad",
+      ] as const) unmeasured(n, "Einstellungs-Tab: weder Modal noch Einstellungs-Fenster gefunden");
     } else {
       const namen = tab.namen ?? [];
       const iSchalter = namen.findIndex((n) => /raw trace|rohen Trace/i.test(n));
@@ -646,7 +687,9 @@ async function main(): Promise<void> {
       // Suchbegriff aus der EIGENEN Definition ableiten, nie als feste Zeichenkette:
       // sonst misst der Punkt die UI-Sprache statt die Auffindbarkeit. Fehlt der Begriff,
       // ist das ein Defekt und kein Grund zum Ueberspringen (vault-crews 2026-08-17).
-      const ersterName = (defs.find(d => typeof d.name === "string" && d.name.length > 3) || {}).name || null;
+      // Nur Definitionen MIT Regler: die Hilfe-Zeile (erstes Element, render-Hatch) belegte sonst sich
+      // selbst statt einer Einstellung (CORE-TEST-03).
+      const ersterName = (defs.find(d => d.control && typeof d.name === "string" && d.name.length > 3) || {}).name || null;
 
       // Der Fallback-Pfad (< 1.13) laeuft im Alltag NIE — ohne diesen Aufruf bliebe er
       // ungeprueft und drifted still von der Definitionsliste weg.
@@ -678,8 +721,8 @@ async function main(): Promise<void> {
     `);
 
     if (!deklarativ.da) {
-      record("Der Settings-Tab bietet getSettingDefinitions() an", false,
-        "Methode fehlt — genau der Store-Befund prefer-setting-definitions");
+      record("getSettingDefinitions() liefert Zeilen und der Host hat sie uebernommen", false,
+        "Methode getSettingDefinitions() fehlt — genau der Store-Befund prefer-setting-definitions");
     } else {
       record("getSettingDefinitions() liefert Zeilen und der Host hat sie uebernommen",
         (deklarativ.defs ?? 0) > 0 && deklarativ.uebernommen === deklarativ.defs,
@@ -993,17 +1036,11 @@ async function main(): Promise<void> {
     }
     await releaseAlwaysOnTop(cdp).catch(() => undefined);
     cdp.close();
-  }
-
-  const failed = results.filter((r) => !r.passed);
-  console.log(`\n${results.length - failed.length}/${results.length} Pruefpunkte gruen`);
-  if (herkunftsWarnung !== null) {
-    console.log("⚠️  Herkunft des gemessenen Builds ungeprueft — s. Warnung oben.");
-  }
-  if (failed.length) {
-    console.log("\nOffen:");
-    for (const f of failed) console.log(`  ✗ ${f.name} — ${f.detail}`);
-    process.exit(1);
+    // Auch nach einem Abbruch: nie aufgezeichnete Punkte zaehlen als „nichts gemessen“.
+    abschluss();
+    if (herkunftsWarnung !== null) {
+      console.log("⚠️  Herkunft des gemessenen Builds ungeprueft — s. Warnung oben.");
+    }
   }
 }
 
@@ -1042,7 +1079,4 @@ function TAB_LESEN(base: string): string {
   `;
 }
 
-main().catch((error: unknown) => {
-  console.error(`\nAbbruch: ${error instanceof Error ? error.message : String(error)}`);
-  process.exit(1);
-});
+runDriver(main);
