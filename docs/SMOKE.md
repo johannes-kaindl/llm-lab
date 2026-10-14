@@ -451,3 +451,8 @@ bewusst kein Rückfall auf die ganze System-Nachricht, weil ein mehrdeutiges Fel
 als ein fehlendes. Die Nachmessung beim Entwurf fand einen zweiten Fall, den diese Abnahme
 übersehen hatte: `reformat:freetext` trägt die Nutzer-Anweisung im System-Prompt und war
 ebenso instabil — die Abnahme hatte `reformat:to-list` gefahren, das stabil ist.
+
+**2026-10-14 (Welle 22, Modell-Runde): `smoke:e2e` 10/10 grün gegen `google/gemma-4-e4b` und `qwen3-embedding:8b`, Zweitinstanz, Obsidian 1.14.4.**
+Der Treiber prüfte `apiVersion 3`, das Plugin meldet seit dem 2026-09-03 `4`; er liest die Version jetzt wie `gui-smoke.ts` aus `LLM_LAB_API_VERSION`, es gibt keine eigene Zahl mehr.
+Zwei Voraussetzungen, die im Vault fehlten und sich als falsches Rot zeigten: ein installiertes vault-retrieval ab 0.41 (der Stand 0.30.0 im Staging-Vault rief `api.log` nie) und ein Index (`_vaultrag/index.bin`, Befehl `vault-retrieval:reindex-vault`).
+Ohne Index meldet der Treiber „0 Notiz(en) recherchiert“ und die beiden Punkte zu `contextPaths` und zum Ordner-Filter werden rot, ohne dass ein Produktfehler vorliegt.

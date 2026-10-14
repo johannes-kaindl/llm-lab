@@ -28,6 +28,8 @@
  * Durchlauf-Vermerke: `docs/SMOKE.md` § Ende-zu-Ende ueber die Plugin-Grenze.
  */
 import { Cdp, beimAbbruch, installiereAbbruch, pollUntil } from "../../tools/obsidian-cdp/cdp.js";
+// Die Version kommt aus der Quelle, nicht als eigene Zahl (Befund I5 in gui-smoke.ts).
+import { LLM_LAB_API_VERSION } from "../src/plugin_api.js";
 
 const DIR = ".obsidian/plugins/llm-lab/traces";
 const ok: string[] = []; const bad: string[] = [];
@@ -107,7 +109,7 @@ await cdp.evaluate(`
     api.__wrapped = true;
   }
   return api.apiVersion;
-`).then(v => record("llm-lab meldet apiVersion 3 am laufenden Plugin", v === 3, `apiVersion ${v}`));
+`).then(v => record(`llm-lab meldet apiVersion ${LLM_LAB_API_VERSION} am laufenden Plugin`, v === LLM_LAB_API_VERSION, `apiVersion ${v}`));
 
 // Tippen, WARTEN, dann senden — nicht tippen-und-sofort-klicken: `currentPaths()` ist
 // pinned ∪ autoDocs, und autoDocs fuellt ein 400-ms-Debounce, den `submit()` abbricht.
