@@ -7,21 +7,13 @@ Kulisse.
 
 ## Vorbedingungen, die dieser Vertrag NICHT selbst herstellt
 
-1. **Staging-Vault offen in der REGULÄREN Instanz** (Port 9222) — Bilder sollen den echten
-   Vault-Look zeigen, eine Zweitinstanz ist hier kein Ersatz (Dach-`AGENTS.md`). Der Vault
-   muss von Hand als Fenster geöffnet sein (Vault-Wechsler → „Ordner als Vault öffnen"); ein
-   Treiber kann das nicht selbst herstellen (s. Skill, Abschnitt „Vorbedingung").
-2. **Obsidians Oberfläche läuft auf Englisch** (`document.documentElement.lang` beginnt mit
-   `en`). Die Sprache ist app-weit und wirkt erst nach einem Neustart — der Treiber PRÜFT das
-   vor dem ersten Bild und bricht mit Klartext ab, er stellt es nicht selbst um (das würde
-   den Arbeits-Vault der regulären Instanz mit umstellen). Umstellen: Settings → About →
-   Language → English, danach Obsidian neu starten (koordiniert, s. Dach-Regel „vor dem Quit
-   fragen"), nach der Aufnahme zurückstellen.
+1. **Zweitinstanz mit dem Staging-Vault** (eigenes Profil, eigener Port; seit Welle 21, vorher die reguläre Instanz). Die Bilder zeigen den Staging-Vault mit Fixture, nicht den Arbeits-Vault. Das Rezept steht im Kopf von `scripts/shots.ts` und im Dach-`AGENTS.md` § Staging-Vaults; die reguläre Instanz (9222) wird nie angefasst. `--port` ist Pflicht.
+2. **Obsidians Oberfläche läuft auf Englisch** (`document.documentElement.lang` beginnt mit `en`). In der Zweitinstanz stellt `"language":"en"` in `$UD/obsidian.json` (plus `localStorage.language`) das her. Der Treiber PRÜFT das vor dem ersten Bild und bricht mit Klartext ab, er stellt es nicht selbst um.
 3. **Der aktuelle Build ist deployt** (`npm run deploy`) und im laufenden Obsidian neu
    geladen (aus-/wieder einschalten) — sonst nimmt der Treiber den vorigen Stand auf, ohne
    dass ihm das auffällt (readme-shots-Fallentabelle).
 
-Alle drei sind **Handgriffe des Maintainers**, kein Automatisierungsziel dieses Skripts.
+Alle drei sind **Handgriffe des Maintainers** bzw. der aufnehmenden Session, kein Automatisierungsziel dieses Skripts.
 
 ## Bildvertrag
 
@@ -56,19 +48,14 @@ ein sauberer Ausgangszustand ist Teil des Rezepts, kein Seiteneffekt.
 ## Reproduktionsrezept
 
 ```bash
-lsof -nP -iTCP:9222 -sTCP:LISTEN >/dev/null && echo "läuft — mitnutzen, nicht neu starten"
+# Zweitinstanz wie im Kopf von scripts/shots.ts (Profil, Port, Vault, Englisch), Lock für den eigenen Port
 npm run deploy               # aktuellen Build in den Staging-Vault bringen
-# im laufenden Obsidian: llm-lab aus- und wieder einschalten (Community plugins)
-# Vault-Wechsler → llm-lab öffnen, falls noch nicht offen; Sprache prüfen (s. o.)
-npm run shots -- --list      # Vertrag anzeigen
-npm run shots                # alle vier Bilder
-npm run shots -- --only hero.png   # ein Bild nachziehen
+npm run shots -- --list      # Vertrag anzeigen (ohne Port)
+npm run shots -- --port <port>                  # alle vier Bilder
+npm run shots -- --port <port> --only hero.png  # ein Bild nachziehen
 ```
 
-`--setup` existiert (baut den Vault aus `docs/images/fixture/` neu — identisch mit dem
-GUI-Smoke-Setup), wird für einen laufenden Nachzieh-Lauf aber **nicht** gebraucht: der Vault
-ist bereits gebaut und registriert, ein `--setup`-Lauf verlangt einen Obsidian-Neustart, den
-dieser Vertrag genau deshalb vermeidet.
+`--setup` baut den Vault aus `docs/images/fixture/` neu (identisch mit dem GUI-Smoke-Setup); für einen Nachzieh-Lauf wird es nicht gebraucht. Die Zweitinstanz liest `obsidian.json` nur beim Start.
 
 ⚠️ **`--only hero.png` allein setzt die Traces NICHT zurück** (gemessen 2026-09-17): den
 Reset erledigt nur `rate-empty.png` als erster Shot der vollen Sequenz — ein isolierter

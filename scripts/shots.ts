@@ -7,47 +7,48 @@
  * Aufnahme-Primitive und Fixture→Vault liegen zentral im Dach
  * (`obsidian-plugins/tools/obsidian-cdp/`), dieser Treiber importiert sie von dort.
  *
- * ## Anders als der GUI-Smoke: die REGULAERE Instanz, nicht die Zweitinstanz
+ * ## Zweitinstanz, Pflicht-Port (seit Welle 21)
  *
- * README-Bilder sollen den echten Vault-Look zeigen (Skill `readme-shots`, Dach-`AGENTS.md`
- * § Staging-Vaults) — eine Zweitinstanz mit eigenem `--user-data-dir` ist hier KEIN Ersatz.
- * Der Staging-Vault (`$STAGING_VAULTS_DIR/llm-lab`) muss deshalb als Fenster in der
- * REGULAEREN Instanz (Port 9222) offen sein, von Hand geoeffnet (Vault-Wechsler → „Ordner
- * als Vault oeffnen") — ein Treiber kann das programmatisch nicht herstellen (Skill,
- * Abschnitt „Vorbedingung").
- *
- * ⚠️ **Vor jedem Zugriff pruefen, wer sonst an der Instanz haengt — und NIE quitten.**
+ * Aufgenommen wird in einer **Zweitinstanz** mit eigenem Profil und eigenem Port — nie in
+ * der regulaeren Instanz (Port 9222), an der andere Sessions haengen koennen, und nie mit `quit`. Die
+ * Bilder zeigen ohnehin den Staging-Vault mit Fixture (`$STAGING_VAULTS_DIR/llm-lab`), nicht den
+ * Arbeits-Vault. Der Treiber hat keinen Standardport: `--port <n>` ist Pflicht (dokumentierter Wert
+ * dieses Rezepts: 9437). Rezept der Zweitinstanz: Dach-`AGENTS.md` § Staging-Vaults.
  *
  * ```bash
- * lsof -nP -iTCP:9222 -sTCP:LISTEN >/dev/null && echo "laeuft — mitnutzen"
+ * UD=/tmp/obs-test-llm-lab; mkdir -p "$UD"
+ * lsof -nP -iTCP:9437 -sTCP:LISTEN; pgrep -f "user-data-dir=$UD"      # beides leer, sonst ausweichen
+ * cp ~/Library/Application\ Support/obsidian/obsidian-<version>.asar "$UD"/
+ * # Vault "$STAGING_VAULTS_DIR/llm-lab" und "language":"en" in "$UD/obsidian.json" eintragen
+ * npm run build && OBSIDIAN_PLUGIN_DIR="$STAGING_VAULTS_DIR/llm-lab/.obsidian/plugins/llm-lab" npm run deploy
+ * /Applications/Obsidian.app/Contents/MacOS/Obsidian --user-data-dir="$UD" --remote-debugging-port=9437 &
+ * python3 ~/.claude/hooks/obsidian-cdp-lock.py acquire --label llm-lab --intent "shots.ts" --exclusive focus --port 9437 --ttl 600
  * ```
  *
  * ## Zweite Vorbedingung: Obsidians Oberflaeche auf Englisch
  *
- * Die Sprache ist app-weit; der Treiber PRUEFT `document.documentElement.lang` vor dem
- * ersten Bild und bricht mit Klartext ab, statt sie selbst umzustellen (das wuerde den
- * Arbeits-Vault der regulaeren Instanz mit umstellen). S. `docs/images/README.md`.
+ * Der Treiber PRUEFT `document.documentElement.lang` vor dem ersten Bild und bricht mit Klartext ab,
+ * statt die Sprache umzustellen. In der Zweitinstanz steht sie ueber `obsidian.json` (`"language":"en"`)
+ * und `localStorage.language`. S. `docs/images/README.md`.
  *
  * ## Ablauf
  *
  * ```bash
- * npm run deploy                     # aktuellen Build in den Staging-Vault bringen
- * # im laufenden Obsidian: llm-lab aus- und wieder einschalten
- * npm run shots -- --list            # Vertrag anzeigen
- * npm run shots                      # alle vier Bilder
- * npm run shots -- --only hero.png   # ein Bild nachziehen
+ * npm run shots -- --list                  # Vertrag anzeigen (ohne Port)
+ * npm run shots -- --port 9437             # alle vier Bilder
+ * npm run shots -- --port 9437 --only hero.png
+ * python3 ~/.claude/hooks/obsidian-cdp-lock.py release
  * ```
  *
- * `--setup` existiert nur als Parität zum Fixture-Vertrag (baut den Vault aus
- * `docs/images/fixture/` neu, identisch mit `gui-smoke.ts --setup`) — ein Nachzieh-Lauf
- * braucht es nicht: der Vault ist bereits gebaut und registriert, `--setup` verlangt einen
- * Obsidian-Neustart, den dieser Vertrag bewusst vermeidet.
+ * `--setup` baut den Vault aus `docs/images/fixture/` neu (identisch mit `gui-smoke.ts --setup`);
+ * ein Nachzieh-Lauf braucht es nicht, der Vault ist bereits gebaut. Die Zweitinstanz liest `obsidian.json`
+ * nur beim Start.
  */
 
 import { createHash } from "node:crypto";
 import { existsSync, mkdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
-import { argv, cwd, env, exit } from "node:process";
+import { argv, cwd, exit } from "node:process";
 
 import {
   attachTo,
@@ -55,6 +56,7 @@ import {
   closeExtraLeaves,
   openExisting,
   pollUntil,
+  requireUntil,
   setAppConfig,
 } from "../../tools/obsidian-cdp/cdp.js";
 import { boxOf, capture, setWindowSize, writeShot, type Rect, type ShotOptions } from "../../tools/obsidian-cdp/shot.js";
@@ -170,10 +172,10 @@ async function zustandZuruecksetzen(cdp: Cdp, base: string): Promise<void> {
     await app.plugins.enablePlugin(${JSON.stringify(PLUGIN_ID)});
     return true;
   `);
-  await pollUntil<boolean>(cdp, `
+  await requireUntil(cdp, `(() => {
     const p = app.plugins.plugins[${JSON.stringify(PLUGIN_ID)}];
     return !!(p && p.api);
-  `, 15_000, 500);
+  })()`, "llm-lab bietet nach dem Neuladen keine api an", 15_000, 500);
 }
 
 async function seedRecords(cdp: Cdp, base: string): Promise<void> {
@@ -191,7 +193,7 @@ async function seedRecords(cdp: Cdp, base: string): Promise<void> {
   // manchmal schneller als die vier Schreibvorgaenge auf der Platte — die Ansicht las
   // dann eine noch unvollstaendige Trace-Datei und die Zeilenzahl blieb unter dem
   // Erwartungswert, bis `rateTabBereit` seine Frist ausschoepfte.
-  await pollUntil<boolean>(cdp, `
+  await requireUntil(cdp, `(async () => {
     const base = ${JSON.stringify(base)};
     const adapter = app.vault.adapter;
     if (!(await adapter.exists(base + "/traces"))) return false;
@@ -202,7 +204,7 @@ async function seedRecords(cdp: Cdp, base: string): Promise<void> {
       zeilen += inhalt.split("\\n").filter((z) => z.trim().length > 0).length;
     }
     return zeilen >= ${SEED_RECORDS.length};
-  `, 8_000, 200);
+  })()`, "Die geseedeten Trace-Zeilen sind nicht auf der Platte gelandet", 8_000, 200);
 }
 
 /** Rate-Tab oeffnen (Ribbon-Aequivalent per Command) und auf die gefuellte Liste warten.
@@ -304,12 +306,12 @@ const SHOTS: Shot[] = [
       // Gepollt statt fixer Pause: das Detail unter der Zeile rendert nach dem Klick
       // asynchron, ein fester 300ms-Schlaf war im Volllauf (nicht isoliert) beobachtbar
       // knapp zu kurz und lieferte einmalig ein 0x0-.llm-lab-rate.
-      await pollUntil<boolean>(cdp, `
+      await requireUntil(cdp, `(() => {
         const el = document.querySelector(".llm-lab-rate");
         if (!el) return false;
         const r = el.getBoundingClientRect();
         return r.width > 1 && r.height > 1;
-      `, 5_000, 200);
+      })()`, "Das Detail der Bewerten-Zeile rendert nicht", 5_000, 200);
       return inhaltsBox(cdp, ".llm-lab-rate");
     },
   },
@@ -442,15 +444,18 @@ async function main(): Promise<void> {
       console.log(`  ${zeile}`);
     }
     console.log(
-      "\n⚠️  Lief Obsidian waehrend dieses Setups, muss es JETZT neu starten — und das trifft\n"
-      + "   die REGULAERE Instanz, an der moeglicherweise andere Sessions haengen. Erst fragen:\n"
-      + "      lsof -nP -iTCP:9222 -sTCP:LISTEN\n"
-      + "   Danach den Vault von Hand oeffnen (Vault-Wechsler → „Ordner als Vault oeffnen\").",
+      "\nDen Vault in $UD/obsidian.json der Zweitinstanz eintragen und sie neu starten;\n"
+      + "die reguläre Instanz bleibt unberuehrt (Kopfkommentar dieses Rezepts).",
     );
     return;
   }
 
-  const port = Number(flag("--port") ?? env.SHOTS_PORT ?? 9222);
+  // Der Port ist PFLICHT: ein Default 9222 traefe die reguelaere Instanz (Dach-AGENTS § Staging-Vaults).
+  const portArg = flag("--port");
+  const port = Number(portArg);
+  if (portArg === undefined || !Number.isInteger(port)) {
+    throw new Error("--port <n> fehlt. Dieses Rezept hat keinen Standardport; die Zweitinstanz-Anleitung steht im Dateikopf.");
+  }
   const nur = flag("--only");
 
   if (!existsSync(outDir)) mkdirSync(outDir, { recursive: true });
@@ -459,8 +464,7 @@ async function main(): Promise<void> {
   if (!cdp) {
     throw new Error(
       `Kein Obsidian-Fenster mit dem Vault "${REPO_NAME}" auf Port ${port}.\n`
-      + "Den Aufnahme-Vault von Hand oeffnen (Vault-Wechsler → „Ordner als Vault oeffnen\"),\n"
-      + "er darf neben anderen Vaults offen sein.",
+      + "Laeuft die Zweitinstanz mit --remote-debugging-port und traegt $UD/obsidian.json den Vault?",
     );
   }
   console.log(`Verbunden auf Port ${port}.\n`);
@@ -469,14 +473,12 @@ async function main(): Promise<void> {
   await cdp.send("Page.bringToFront");
   await new Promise((r) => setTimeout(r, 2000));
 
-  // Aufnahmesprache PRUEFEN, nicht setzen — sie ist app-weit, ein Umstellen wirkt erst nach
-  // einem Neustart und hinterliesse den Arbeits-Vault der regulaeren Instanz englisch.
+  // Aufnahmesprache PRUEFEN, nicht setzen — sie ist app-weit und wirkt erst nach einem Neustart.
   const lang = await cdp.evaluate<string>(`return document.documentElement.lang || "";`);
   if (lang && !lang.startsWith("en")) {
     throw new Error(
       `Obsidians Oberflaeche laeuft auf "${lang}", der Bildvertrag verlangt Englisch.\n`
-      + "  Umstellen (app-weit, wirkt nach einem Neustart): Settings → About → Language → English.\n"
-      + "  Nach der Aufnahme zurueckstellen — sonst startet auch der Arbeits-Vault englisch.",
+      + "  In der Zweitinstanz: \"language\":\"en\" in $UD/obsidian.json und localStorage.language, dann neu starten.",
     );
   }
 
