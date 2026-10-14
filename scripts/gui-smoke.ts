@@ -74,7 +74,7 @@ import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
-import { Cdp, attachTo, bereiteInstanzVor, pollUntil, releaseAlwaysOnTop, requireVisible } from "../../tools/obsidian-cdp/cdp.js";
+import { Cdp, attachTo, beimAbbruch, bereiteInstanzVor, istAbgebrochen, ladePluginNeu, pollUntil, releaseAlwaysOnTop, requireVisible } from "../../tools/obsidian-cdp/cdp.js";
 import { createBilanz, parseArgs, runDriver } from "../../tools/obsidian-cdp/bilanz.js";
 import { buildVault, requireEigenerBuild, stagingVaultDir } from "../../tools/obsidian-cdp/vault.js";
 // Befund I5: die apiVersion war dreimal veraltet, weil der Treiber sie als eigene Zahl
@@ -261,41 +261,56 @@ async function main(): Promise<void> {
   let savedSettings: Settings | null = null;
   let angelegteDateien: string[] = [];
 
-  try {
-    const vorhanden = await cdp.evaluate<{ ok: boolean; version?: string; dir?: string; lang?: string }>(`
-      const p = app.plugins.plugins[${JSON.stringify(PLUGIN_ID)}];
-      if (!p) return { ok: false };
-      return {
-        ok: true,
-        version: p.manifest.version,
-        dir: p.manifest.dir || ".obsidian/plugins/" + p.manifest.id,
-        lang: document.documentElement.lang || "en",
-      };
-    `);
-    if (!vorhanden.ok) {
-      throw new Error(`Plugin "${PLUGIN_ID}" ist im Vault "${vaultName}" nicht aktiv — ${instanz.hinweis}.`);
+  // Alles, was dieser Lauf am Wirt aendert (Einstellungen, erfundene Trace-Dateien), gibt EIN Schritt zurueck:
+  // der Normalweg im `finally` (`zustand.schliesse()`) und Ctrl-C ueber das Abbruch-Modul der Bruecke (Hauptzweig
+  // gesperrt, dieser Schritt darf noch senden, danach Bilanz, Exit 130). Idempotent, wartet nicht. Angemeldet VOR
+  // der ersten Mutation; `savedSettings` ist bis zur Sicherung `null`, dann gibt es nichts zurueckzuschreiben.
+  const zustandZurueck = async (): Promise<void> => {
+    if (savedSettings && !keep) {
+      const zurueck = await cdp.evaluate<{ datei: string }>(`
+        const p = app.plugins.plugins[${JSON.stringify(PLUGIN_ID)}];
+        if (p) { p.settings = ${JSON.stringify(savedSettings)}; await p.saveSettings(); }
+        // Am ERGEBNIS messen, nicht am Objekt im Speicher: ein Aufraeumer, der sichtbar
+        // aufraeumt und die Datei nicht anfasst, ist der teuerste Fehlerfall.
+        return { datei: await app.vault.adapter.read(${JSON.stringify(".obsidian/plugins/" + PLUGIN_ID + "/data.json")}).catch(() => "") };
+      `).catch(() => ({ datei: "" }));
+      let gleich = false;
+      try { gleich = JSON.stringify(JSON.parse(zurueck.datei) as unknown) === JSON.stringify(savedSettings); } catch { gleich = false; }
+      console.log(`\n  Einstellungen zurueckgeschrieben — data.json ${gleich ? "stimmt mit dem Vorwert ueberein" : "ABWEICHUNG, Vorwert steht oben im Protokoll"}`);
     }
+    if (!keep && angelegteDateien.length > 0) {
+      const weg = await cdp.evaluate<number>(`
+        let n = 0;
+        for (const pfad of ${JSON.stringify(angelegteDateien)}) {
+          if (await app.vault.adapter.exists(pfad)) { await app.vault.adapter.remove(pfad); n++; }
+        }
+        return n;
+      `).catch(() => 0);
+      if (weg) console.log(`  ${weg} erfundene Trace-Datei(en) entfernt.`);
+    }
+  };
+  const zustand = beimAbbruch(zustandZurueck, "Einstellungen zurueckschreiben, erfundene Trace-Dateien entfernen");
 
-    // Der Hash-Guard oben vergleicht nur DATEIEN (Arbeitsbaum vs. Vault), nicht was Obsidian
-    // gerade GELADEN hat: das Plugin-Objekt im laufenden Fenster stammt vom letzten
-    // enablePlugin (typischerweise Vault-Oeffnen), nicht vom letzten Deploy. Ohne diesen
-    // Reload hier pruefen die fruehen Punkte (allen voran Pruefpunkt 1, der Vertrag) also
-    // moeglicherweise einen VERALTETEN Plugin-Stand, obwohl main.js laengst aktuell ist —
-    // gemessen 2026-08-23: apiVersion 1 im geladenen Objekt, obwohl main.js bereits
-    // apiVersion 2 baute. Der Reload-Mechanismus selbst ist derselbe wie in Pruefpunkt 4
-    // weiter unten (disablePlugin/enablePlugin + pollUntil auf status()) — hier zieht er nur
-    // vor den ersten inhaltlichen Pruefpunkt.
-    await cdp.evaluate(`
-      await app.plugins.disablePlugin(${JSON.stringify(PLUGIN_ID)});
-      await app.plugins.enablePlugin(${JSON.stringify(PLUGIN_ID)});
-      return true;
-    `);
+  try {
+    // Plugin neu laden: das Objekt im Fenster stammt vom letzten enablePlugin, nicht vom letzten Deploy (gemessen 2026-08-23:
+    // apiVersion 1 im geladenen Objekt, obwohl main.js bereits apiVersion 2 baute). `ladePluginNeu` zieht den Manifest-Cache
+    // nach, lädt neu und stellt die Version von der PLATTE neben die im Speicher; die Kopfzeile nennt beide.
+    const neu = await ladePluginNeu(cdp, PLUGIN_ID);
+    if (!neu.geladen) {
+      throw new Error(`Plugin "${PLUGIN_ID}" ist im Vault "${vaultName}" nicht aktiv — ${instanz.hinweis}. ${neu.hinweis}`);
+    }
+    if (!neu.aktuell) throw new Error(neu.hinweis);
+    const vorhanden = {
+      version: neu.nachher.plugin,
+      dir: neu.dir,
+      lang: await cdp.evaluate<string>(`return document.documentElement.lang || "en";`),
+    };
     await pollUntil<{ recording: boolean } | null>(cdp, `
       const p = app.plugins.plugins[${JSON.stringify(PLUGIN_ID)}];
       return p && p.api ? p.api.status() : null;
     `, 15_000, 500);
 
-    const base = vorhanden.dir as string;
+    const base = vorhanden.dir;
     const tracesDir = `${base}/traces`;
     const heuteDatei = `${tracesDir}/${heute}.jsonl`;
     // Die Sprache ist app-weit und gehoert dem Nutzer, nicht dem Lauf: statt sie zu stellen,
@@ -305,7 +320,7 @@ async function main(): Promise<void> {
     const de = (vorhanden.lang ?? "en").startsWith("de");
     const TEXT_RECORDING = de ? "Lab: schreibt mit" : "Lab: recording";
     const TEXT_PAUSED = de ? "Lab: pausiert" : "Lab: paused";
-    console.log(`\nLLM Lab ${vorhanden.version} · Vault ${vaultName} · Oberflaeche ${de ? "de" : "en"} · Tag ${heute}\n`);
+    console.log(`\n${neu.hinweis}\nLLM Lab ${vorhanden.version} · Vault ${vaultName} · Oberflaeche ${de ? "de" : "en"} · Tag ${heute}\n`);
 
     // --- 1. Der oeffentliche Vertrag ----------------------------------------
     // Die Zusage, die kein Unit-Test des Repos pruefen kann: dass sie am LEBENDEN
@@ -1011,27 +1026,9 @@ async function main(): Promise<void> {
         : "geloeschte id steht weiterhin in der Trace-Datei (Timeout)");
 
   } finally {
-    if (savedSettings && !keep) {
-      const zurueck = await cdp.evaluate<{ datei: string }>(`
-        const p = app.plugins.plugins[${JSON.stringify(PLUGIN_ID)}];
-        if (p) { p.settings = ${JSON.stringify(savedSettings)}; await p.saveSettings(); }
-        // Am ERGEBNIS messen, nicht am Objekt im Speicher: ein Aufraeumer, der sichtbar
-        // aufraeumt und die Datei nicht anfasst, ist der teuerste Fehlerfall.
-        return { datei: await app.vault.adapter.read(${JSON.stringify(".obsidian/plugins/" + PLUGIN_ID + "/data.json")}).catch(() => "") };
-      `).catch(() => ({ datei: "" }));
-      let gleich = false;
-      try { gleich = JSON.stringify(JSON.parse(zurueck.datei) as unknown) === JSON.stringify(savedSettings); } catch { gleich = false; }
-      console.log(`\n  Einstellungen zurueckgeschrieben — data.json ${gleich ? "stimmt mit dem Vorwert ueberein" : "ABWEICHUNG, Vorwert steht oben im Protokoll"}`);
-    }
+    await zustand.schliesse();
+    if (istAbgebrochen()) return;
     if (!keep) {
-      const weg = await cdp.evaluate<number>(`
-        let n = 0;
-        for (const pfad of ${JSON.stringify(angelegteDateien)}) {
-          if (await app.vault.adapter.exists(pfad)) { await app.vault.adapter.remove(pfad); n++; }
-        }
-        return n;
-      `).catch(() => 0);
-      if (weg) console.log(`  ${weg} erfundene Trace-Datei(en) entfernt.`);
       console.log("  Die vom Lauf geschriebenen Zeilen der heutigen Trace-Datei bleiben stehen (Beleg des Laufs; --setup baut den Vault neu).");
     }
     await releaseAlwaysOnTop(cdp).catch(() => undefined);
