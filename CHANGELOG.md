@@ -6,6 +6,9 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Changed
+- Vendored `obsidian-kit` 0.60.1 (was 0.56.0) and `code-kit` 0.27.1 (was 0.23.0). Nothing you see in this plugin changes: the kit releases in between concern the endpoint list, the stream area, share export, the tool-provider contract and helper functions, none of which this plugin vendors (it uses the settings walker, folder suggest, confirm, help row, hub and redaction).
+
 ## [0.9.1] — 2026-10-12
 
 ### Changed
