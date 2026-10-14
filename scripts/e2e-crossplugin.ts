@@ -27,7 +27,7 @@
  *
  * Durchlauf-Vermerke: `docs/SMOKE.md` § Ende-zu-Ende ueber die Plugin-Grenze.
  */
-import { Cdp, pollUntil } from "../../tools/obsidian-cdp/cdp.js";
+import { Cdp, beimAbbruch, installiereAbbruch, pollUntil } from "../../tools/obsidian-cdp/cdp.js";
 
 const DIR = ".obsidian/plugins/llm-lab/traces";
 const ok: string[] = []; const bad: string[] = [];
@@ -42,8 +42,34 @@ if (!Number.isInteger(port) || port < 1024 || port > 65535) {
   console.error("Abbruch: --port <1024-65535> ist Pflicht (Port der eigenen Zweitinstanz; 9222 gehoert der regulaeren Instanz).");
   process.exit(2);
 }
+// Dieses Skript hat kein `main` und kein `runDriver`: die Signale haengt es selbst ein (Bruecke, README § Abbruch).
+installiereAbbruch();
 const cdp = await Cdp.attach(port, "llm-lab");
 console.log("\nEnde-zu-Ende: vault-rag → Plugin-Grenze → llm-lab\n");
+
+// Alles, was dieser Lauf am Fenster aendert (Wrapper auf api.log, Ordner-Filter), gibt EIN Schritt zurueck:
+// der Normalweg unten (`zustand.schliesse()`) und Ctrl-C ueber das Abbruch-Modul. Idempotent, wartet nicht.
+// Angemeldet VOR der ersten Mutation; die Vorwerte der Filter-Einstellungen werden hier gelesen.
+const vorwerte = await cdp.evaluate<{ excludedFolders: unknown; strictFolderExclusion: unknown }>(`
+  const s = app.plugins.plugins["llm-lab"].settings;
+  return JSON.parse(JSON.stringify({ excludedFolders: s.excludedFolders ?? [], strictFolderExclusion: s.strictFolderExclusion ?? false }));
+`);
+const zustand = beimAbbruch(async () => {
+  await cdp.evaluate(`
+    const p = app.plugins.plugins["llm-lab"];
+    if (p) {
+      p.settings.excludedFolders = ${JSON.stringify(vorwerte.excludedFolders)};
+      p.settings.strictFolderExclusion = ${JSON.stringify(vorwerte.strictFolderExclusion)};
+      await p.saveData(p.settings);
+      const api = p.api;
+      if (api && api.__e2eOrig) { api.log = api.__e2eOrig; delete api.__e2eOrig; }
+      if (api) delete api.__wrapped;
+    }
+    delete window.__e2e;
+    return true;
+  `);
+  console.log("  Wrapper auf api.log entfernt, Ordner-Filter auf den Vorwert zurueckgesetzt");
+}, "api.log-Wrapper entfernen, Ordner-Filter zuruecksetzen");
 
 // 0. Beide Plugins neu laden — der Hash-Guard sagt nichts darueber, was geladen IST.
 await cdp.evaluate(`
@@ -160,6 +186,7 @@ const clean = await cdp.evaluate<string>(`
 `);
 record("Aufraeumen setzt api.log zurueck — kein toter Wrapper bleibt stehen",
   clean === "clean", clean);
+await zustand.schliesse();   // stellt zusaetzlich strictFolderExclusion auf den Vorwert (idempotent)
 
 console.log(`\n${ok.length}/${ok.length + bad.length} Pruefpunkte gruen`);
 if (bad.length) { console.log("\nOffen:"); bad.forEach(b => console.log("  ✗ " + b)); }
