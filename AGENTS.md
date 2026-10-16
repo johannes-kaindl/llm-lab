@@ -1,7 +1,7 @@
 # AGENTS.md
 
 Orientierung für KI-Agenten (Claude Code, Codex, …) und Mitwirkende an diesem Repository.
-Workspace-weite Standards (comply-or-explain): siehe [`../_docs/CONVENTIONS.md`](../_docs/CONVENTIONS.md)
+Workspace-weite Standards (comply-or-explain): siehe [`../../workspace/_docs/CONVENTIONS.md`](../../workspace/_docs/CONVENTIONS.md)
 (maintainer-lokal, im Klon ggf. nicht vorhanden — dann ignorieren).
 
 **Profil:** `ts-node` · `obsidian-plugin`.
