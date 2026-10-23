@@ -74,7 +74,7 @@ import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
-import { Cdp, attachTo, beimAbbruch, bereiteInstanzVor, istAbgebrochen, ladePluginNeu, pollUntil, releaseAlwaysOnTop, requireVisible } from "../../tools/obsidian-cdp/cdp.js";
+import { Cdp, attachTo, beimAbbruch, bereiteInstanzVor, istAbgebrochen, ladePluginNeu, pollUntil, releaseAlwaysOnTop, requireVisible, schliesseEinstellungen } from "../../tools/obsidian-cdp/cdp.js";
 import { createBilanz, parseArgs, runDriver } from "../../tools/obsidian-cdp/bilanz.js";
 import { buildVault, requireEigenerBuild, stagingVaultDir } from "../../tools/obsidian-cdp/vault.js";
 // Befund I5: die apiVersion war dreimal veraltet, weil der Treiber sie als eigene Zahl
@@ -827,7 +827,7 @@ async function main(): Promise<void> {
     }
 
     if (tabCdp !== cdp) tabCdp?.close();
-    await cdp.evaluate(`app.setting.close(); return true;`).catch(() => undefined);
+    await schliesseEinstellungen(cdp);
 
     // --- 14. log() wirft nie ------------------------------------------------
     // Die Zusage gehoert der Seite, die sie gibt: ein Konsument ruft mitten in seinem
