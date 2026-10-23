@@ -6,6 +6,8 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.9.2] — 2026-10-23
+
 ### Security
 
 - The folders you exclude in "Never record notes from these folders" now hold a note under every spelling that lands in the same folder on disk. Before, the comparison was plain text, so `Private /note.md` or `Private./note.md` (Windows drops blanks and dots at the end of a name), `Private:x/note.md`, `PRIVATE/note.md` (macOS and Windows fold the case) or `Über` written with a combining diaeresis slipped past the exclusion and the note was recorded. A folder with a slash at the end (`Private/`) used to match nothing and now works as typed; the folder itself and everything below it count, whole names only (`Private2` is not `Private`). A path the plugin cannot read as a vault path (one with `..` or a NUL byte) counts as excluded, since a path that cannot be placed must not leak; blanks at either end of a path are ignored.
