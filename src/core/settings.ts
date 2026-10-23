@@ -1,4 +1,4 @@
-import { isInFolder } from "../vendor/kit/folder-scope";
+import { filesystemPath, isInFolder } from "../vendor/kit/folder-scope";
 
 export interface LabSettings {
   enabled: boolean;
@@ -44,7 +44,13 @@ export function pathsExcluded(paths: string[] | undefined, s: LabSettings): bool
 
   // Datenschutzgrenze: ein ausgeschlossener Ordner BEWACHT, also die Lesart des strengsten Dateisystems (Kit `folder-scope`): Leerraum und Punkt am
   // Segmentende, `:`-Suffix und Groß-/Kleinschreibung ändern nicht, welcher Ordner gemeint ist. `self`: der Ordner selbst zählt als ausgeschlossen.
-  const trifft = (p: string): boolean => folders.some((f) => isInFolder(p, f, { self: true, reading: "filesystem" }));
+  // Fail-closed bei Unlesbarem: ein Pfad mit `..` oder NUL liegt für das Kit „in keinem Ordner“, das hieße hier: wird mitgeschrieben. Für eine
+  // Datenschutzgrenze ist das die falsche Richtung, also gilt er als ausgeschlossen. Randweißraum wird wie früher getrimmt (Pfade kommen aus fremden Plugins).
+  const trifft = (roh: string): boolean => {
+    const p = roh.trim();
+    if (filesystemPath(p) === null) return true;
+    return folders.some((f) => isInFolder(p, f, { self: true, reading: "filesystem" }));
+  };
   return s.strictFolderExclusion ? paths.some(trifft) : paths.every(trifft);
 }
 

@@ -111,6 +111,20 @@ describe("pathsExcluded", () => {
     expect(pathsExcluded(["Privat/b.md"], mit({ excludedFolders: ["Privat/"] }))).toBe(true);
   });
 
+  // Sicherheitsbefund der Review (Welle 25): was das Kit nicht lesen kann, fällt dort „in keinen Ordner“ — für eine Datenschutzgrenze die falsche
+  // Richtung. Ein Pfad mit `..` oder NUL gilt als ausgeschlossen (fail-closed), ein Pfad mit Leerraum am Rand wird wie früher getrimmt.
+  it.each(["Privat/../b.md", "Notizen/../Privat/b.md", "Privat/b\u0000.md", " Privat/b.md", "Privat/b.md "])(
+    "schliesst den Pfad %j aus (fail-closed bei Unlesbarem, Randweissraum wird getrimmt)",
+    (pfad) => {
+      expect(pathsExcluded([pfad], mit({ excludedFolders: ["Privat"] }))).toBe(true);
+    },
+  );
+
+  it("Unlesbare Pfade schliessen nichts aus, solange kein Ordner konfiguriert ist", () => {
+    expect(pathsExcluded(["a/../b.md"], DEFAULT_SETTINGS)).toBe(false);
+    expect(pathsExcluded(["a/../b.md"], mit({ excludedFolders: ["", "  "] }))).toBe(false);
+  });
+
   it("Gegenprobe: ähnliche Namen bleiben draussen", () => {
     const s = mit({ excludedFolders: ["Privat"] });
     for (const p of ["Privat2/b.md", "Privates/b.md", "Notizen/Privat.md", "Notizen/Privat/b.md", "Priv at/b.md"]) {
