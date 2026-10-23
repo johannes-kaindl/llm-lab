@@ -1,6 +1,6 @@
 {
   "source": "code-kit",
-  "version": "0.28.0",
-  "sha": "642b791",
-  "vendored": "i18n.ts, redact.ts"
+  "version": "0.34.0",
+  "sha": "065b068",
+  "vendored": "folder-scope.ts, i18n.ts, redact.ts, rel-path.ts"
 }

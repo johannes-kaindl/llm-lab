@@ -1,3 +1,5 @@
+import { isInFolder } from "../vendor/kit/folder-scope";
+
 export interface LabSettings {
   enabled: boolean;
   keepDays: number;
@@ -9,8 +11,8 @@ export interface LabSettings {
   /** Strengere Politik: schon den rohen Trace PII-redigieren. Standard aus —
    *  das Debugging braucht, was wirklich gesendet wurde. */
   redactPiiInTrace: boolean;
-  /** Vault-Ordner, deren Notizen nie protokolliert werden. Praefix-Vergleich mit
-   *  Ordnergrenze — greift nur bei Aufrufen, deren Plugin `contextPaths` mitliefert. */
+  /** Vault-Ordner, deren Notizen nie protokolliert werden. Vergleich nach der Lesart des strengsten
+   *  Dateisystems mit Ordnergrenze — greift nur bei Aufrufen, deren Plugin `contextPaths` mitliefert. */
   excludedFolders: string[];
   /** true: ein einziger ausgeschlossener Pfad verhindert den Record (Default).
    *  false: nur wenn ALLE beteiligten Notizen ausgeschlossen sind. */
@@ -28,29 +30,21 @@ export const DEFAULT_SETTINGS: LabSettings = {
   strictFolderExclusion: true,
 };
 
-/** Vault-Pfade kommen aus fremden Plugins und damit in fremder Schreibweise.
- *  Trimmen zuerst, sonst laeuft die Slash-Entfernung hinter einem Leerzeichen ins Leere. */
-function normalizePath(p: string): string {
-  return p.trim().replace(/\\/g, "/").replace(/^\/+/, "");
-}
-
 /** Entscheidet, ob die beteiligten Notizen einen Record verhindern.
  *
  *  **fail-open, wenn keine Pfade kommen.** Fail-closed hiesse: sobald ein Ordner
  *  ausgeschlossen ist, verstummt jeder Konsument, der noch keine Pfade liefert.
  *  Der Preis ist eine Zusage mit Grenze — die steht deshalb im Settings-Tab. */
 export function pathsExcluded(paths: string[] | undefined, s: LabSettings): boolean {
-  // Leere Zeilen fliegen raus, BEVOR verglichen wird: ein leerer String waere als
-  // Praefix auf jedem Pfad wahr und machte aus einem Tippfehler ein stummes Plugin.
-  const folders = s.excludedFolders.map(normalizePath).filter((f) => f.length > 0);
+  // Die Ordner-Einstellung wird HIER getrimmt (das Kit trimmt nicht: sonst schlösse „Privat “ still nichts mehr aus), leere Zeilen fliegen raus,
+  // BEVOR verglichen wird: ein leerer String wäre als Präfix auf jedem Pfad wahr und machte aus einem Tippfehler ein stummes Plugin.
+  const folders = s.excludedFolders.map((f) => f.trim()).filter((f) => f.length > 0);
   if (folders.length === 0) return false;
   if (!paths || paths.length === 0) return false;
 
-  const trifft = (p: string): boolean => {
-    const path = normalizePath(p);
-    // Ordnergrenze: sonst schluckt der Ausschluss „Privat" auch „Privates.md".
-    return folders.some((f) => path === f || path.startsWith(f + "/"));
-  };
+  // Datenschutzgrenze: ein ausgeschlossener Ordner BEWACHT, also die Lesart des strengsten Dateisystems (Kit `folder-scope`): Leerraum und Punkt am
+  // Segmentende, `:`-Suffix und Groß-/Kleinschreibung ändern nicht, welcher Ordner gemeint ist. `self`: der Ordner selbst zählt als ausgeschlossen.
+  const trifft = (p: string): boolean => folders.some((f) => isInFolder(p, f, { self: true, reading: "filesystem" }));
   return s.strictFolderExclusion ? paths.some(trifft) : paths.every(trifft);
 }
 

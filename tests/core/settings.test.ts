@@ -92,6 +92,32 @@ describe("pathsExcluded", () => {
     expect(pathsExcluded(["/Privat/Unterordner/b.md"], s)).toBe(true);
   });
 
+  // Datenschutzgrenze, Kit `folder-scope` mit `reading: "filesystem"` (Welle 25): ein Pfad, der auf der Platte im ausgeschlossenen Ordner landet,
+  // zählt als ausgeschlossen, auch wenn er anders geschrieben ist.
+  it.each([
+    "Privat/b.md", "privat/b.md", "PRIVAT/b.md", "Privat /b.md", "Privat./b.md", "Privat . /b.md", "Privat:x/b.md",
+    "Privat\u00a0/b.md", "Privat\u202f/b.md", "Privat/tief/b.md", "Privat",
+  ])("schliesst %s aus, wenn „Privat“ ausgeschlossen ist", (pfad) => {
+    expect(pathsExcluded([pfad], mit({ excludedFolders: ["Privat"] }))).toBe(true);
+  });
+
+  it("schliesst auch ohne Unicode-Normalform-Gleichheit aus (Ü als ein oder zwei Zeichen) und mit Eszett/langem s", () => {
+    expect(pathsExcluded(["\u00dcber/a.md"], mit({ excludedFolders: ["U\u0308ber"] }))).toBe(true);
+    expect(pathsExcluded(["Stra\u00dfe/a.md"], mit({ excludedFolders: ["STRASSE"] }))).toBe(true);
+    expect(pathsExcluded(["Priva\u017f/a.md"], mit({ excludedFolders: ["Privas"] }))).toBe(true);
+  });
+
+  it("ein Schrägstrich am Ende der Einstellung ändert nichts (vorher: „Privat/“ traf nichts)", () => {
+    expect(pathsExcluded(["Privat/b.md"], mit({ excludedFolders: ["Privat/"] }))).toBe(true);
+  });
+
+  it("Gegenprobe: ähnliche Namen bleiben draussen", () => {
+    const s = mit({ excludedFolders: ["Privat"] });
+    for (const p of ["Privat2/b.md", "Privates/b.md", "Notizen/Privat.md", "Notizen/Privat/b.md", "Priv at/b.md"]) {
+      expect(pathsExcluded([p], s), p).toBe(false);
+    }
+  });
+
   it("eine leere Ordner-Zeile schliesst NICHT den ganzen Vault aus", () => {
     // Ein leerer String waere als Praefix auf jeden Pfad wahr — der haeufigste
     // Weg, aus einem Tippfehler ein stummes Plugin zu machen.

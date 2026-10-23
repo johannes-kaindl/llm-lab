@@ -6,7 +6,13 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Security
+
+- The folders you exclude in "Never record notes from these folders" now hold a note under every spelling that lands in the same folder on disk. Before, the comparison was plain text, so `Private /note.md` or `Private./note.md` (Windows drops blanks and dots at the end of a name), `Private:x/note.md`, `PRIVATE/note.md` (macOS and Windows fold the case) or `Über` written with a combining diaeresis slipped past the exclusion and the note was recorded. A folder with a slash at the end (`Private/`) used to match nothing and now works as typed; the folder itself and everything below it count, whole names only (`Private2` is not `Private`).
+
 ### Changed
+
+- Vendored `code-kit` 0.34.0 (was 0.28.0), for the exclusion above. Nothing else you see in this plugin changes.
 - Vendored `obsidian-kit` 0.61.0 (was 0.60.1) and `code-kit` 0.28.0 (was 0.27.1). Nothing you see in this plugin changes: the copied building blocks (`redact`, `i18n`, hub, settings walker, confirm dialog, folder suggest, help row) differ only in their origin header; the skipped kit releases (obsidian-kit 0.60.2, 0.60.3, 0.61.0; code-kit 0.27.2, 0.28.0) touch chat, thinking and request building blocks that this plugin does not use.
 - Vendored `obsidian-kit` 0.60.1 (was 0.56.0) and `code-kit` 0.27.1 (was 0.23.0). Nothing you see in this plugin changes: the kit releases in between concern the endpoint list, the stream area, share export, the tool-provider contract and helper functions, none of which this plugin vendors (it uses the settings walker, folder suggest, confirm, help row, hub and redaction).
 
