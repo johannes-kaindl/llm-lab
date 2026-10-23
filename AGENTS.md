@@ -1,367 +1,35 @@
 # AGENTS.md
 
-Orientierung für KI-Agenten (Claude Code, Codex, …) und Mitwirkende an diesem Repository.
-Workspace-weite Standards (comply-or-explain): siehe [`../../workspace/_docs/CONVENTIONS.md`](../../workspace/_docs/CONVENTIONS.md)
-(maintainer-lokal, im Klon ggf. nicht vorhanden — dann ignorieren).
+Orientierung für KI-Agenten (Claude Code, Codex, …) und Mitwirkende an diesem Repository. Workspace-weite Standards (comply-or-explain): siehe [`../../workspace/_docs/CONVENTIONS.md`](../../workspace/_docs/CONVENTIONS.md) (maintainer-lokal, im Klon ggf. nicht vorhanden — dann ignorieren).
 
 **Profil:** `ts-node` · `obsidian-plugin`.
 
-**Stand 2026-09-02: Slice 1 gebaut, 0.1.0 bis 0.4.0 released, beide Forges öffentlich, Store-
-Einreichung steht aus (Developer Dashboard, Maintainer-Login). Die Vertragserweiterung
-(`apiVersion` 2 — `secrets`/`contextPaths`, Ordner-Filter) ist mit 0.3.0 (2026-08-24) released,
-die zweite (`apiVersion` 3 — `promptTemplate`/`promptTemplateHash`, eine Prompt-*Fassung* statt
-eines einzelnen Aufrufs) mit **0.4.0 (2026-08-30)**, zusammen mit vault-rag 0.29.0.** Für neue
-Vorhaben gilt: erst Kit-first-Sondierung (`../AGENTS.md` + `../REGISTRY.md`), dann
-`superpowers:brainstorming` → Spec → Plan → TDD.
-
-⚠️ **Das Plugin kann nicht selbst merken, dass es niemand benutzt — und alle Prüfungen bleiben
-dabei grün.** Am 2026-09-02 gemessen: in `10_Pallas` war seit dem ersten Release **kein einziger
-echter Record** entstanden (`.obsidian/plugins/llm-lab/` trug nur die drei Deploy-Dateien, weder
-`traces/` noch `data.json`), obwohl llm-lab 0.4.0 und vault-retrieval 0.29.0 installiert **und**
-aktiviert waren und die Verdrahtung im Build steckte. Kein Defekt: `vault-rag` ist der einzige
-Konsument, und sein Chat wurde nicht benutzt. **Gate und GUI-Smoke können das strukturell nicht
-melden — der Smoke erzeugt seine Prüf-Records selbst.** Wer „38/38 grün" liest, weiß damit, dass
-der Schreibweg funktioniert, *nicht* dass etwas aufgezeichnet wird. Die Frage „fließen Daten?"
-beantwortet nur ein Blick in den Plugin-Ordner des Arbeitsvaults. Folge für jede Slice, die auf
-Daten aufbaut: **erst den Konsumenten anschließen, dann die Auswertung bauen** — sonst entsteht
-eine Oberfläche für eine leere Datei.
-
 ## Project character
 
-**Projekt:** `llm-lab` (manifest-`id` = Repo-Slug) — Obsidian-Plugin, das **anderen**
-Obsidian-Plugins eine Aufzeichnungs-API anbietet: jeder LLM-Aufruf, den ein Nachbarplugin
-macht, kann mit einer Zeile protokolliert werden (Modell, volle Nachrichtenliste, Antwort,
-Latenz, Fehler/Abbruch). Aus den Aufzeichnungen entsteht später (nicht in Slice 1) ein
-bewerteter Datensatz für Auswertung und Fine-Tuning. Autor: Johannes Kaindl.
+**Projekt:** `llm-lab` (manifest-`id` = Repo-Slug) — Obsidian-Plugin, das **anderen** Obsidian-Plugins eine Aufzeichnungs-API anbietet: jeder LLM-Aufruf, den ein Nachbarplugin macht, kann mit einer Zeile protokolliert werden (Modell, volle Nachrichtenliste, Antwort, Latenz, Fehler/Abbruch). Aus den Aufzeichnungen entsteht später (nicht in Slice 1) ein bewerteter Datensatz für Auswertung und Fine-Tuning. Autor: Johannes Kaindl.
 
-**Warum es existiert:** Vier Plugins im Workspace sprechen mit lokalen LLMs (`vault-rag`,
-`koda-agent`, `vault-crews`, `obsidian-transmute`) — über die Qualität dieser Aufrufe existieren
-**keine Daten**. Ist Modell B besser als Modell A für ein Feature? Hat eine Prompt-Änderung
-geholfen oder geschadet? Heute wird das geraten. LLM Lab ist die laufende Erhebung dafür,
-**als eigenes Plugin**, nicht als Kit-Modul oder Feature in einem der vier: ein Protokoll von
-LLM-Interaktionen ist eine Fähigkeit, die niemand stillschweigend in einem Retrieval- oder
-Chat-Plugin haben will — „nicht installiert" ist eine stärkere Zusage als jeder
-Settings-Schalter, und der Wert entsteht gerade durch den Vergleich über Plugins hinweg.
+**Warum es existiert:** Vier Plugins im Workspace sprechen mit lokalen LLMs (`vault-rag`, `koda-agent`, `vault-crews`, `obsidian-transmute`) — über die Qualität dieser Aufrufe existieren **keine Daten**. Ist Modell B besser als Modell A für ein Feature? Hat eine Prompt-Änderung geholfen oder geschadet? Heute wird das geraten. LLM Lab ist die laufende Erhebung dafür, **als eigenes Plugin**, nicht als Kit-Modul oder Feature in einem der vier: ein Protokoll von LLM-Interaktionen ist eine Fähigkeit, die niemand stillschweigend in einem Retrieval- oder Chat-Plugin haben will — „nicht installiert" ist eine stärkere Zusage als jeder Settings-Schalter, und der Wert entsteht gerade durch den Vergleich über Plugins hinweg.
 
-**Nicht-Ziele (Slice-1-Grenzen):** kein eigener LLM-Client, kein Netzwerkzugriff, keine
-Bewertungs-Oberfläche, kein Export, keine Statistik-Auswertung. LLM Lab ruft nie selbst ein
-Modell auf — es zeichnet nur auf, was ein anderes Plugin bereits gesendet und empfangen hat.
+**Nicht-Ziele:** kein eigener LLM-Client, kein Netzwerkzugriff, kein Export, keine Statistik-Auswertung (die Panels `stats` und `export` der Ansicht sind nicht gebaut; gebaut ist „Bewerten“). LLM Lab ruft nie selbst ein Modell auf — es zeichnet nur auf, was ein anderes Plugin bereits gesendet und empfangen hat.
 
-## Architektur: Anbieter, nicht Konsument
+## Architecture principles
 
-`llm-lab` ist **Anbieter**, andere Plugins sind **Konsumenten** — dieselbe Bauart wie
-`vault-rag/src/plugin_api.ts` (Anbieter) und `koda-agent/src/obsidian/retrieval.ts`
-(defensiver Konsument), nur mit vertauschten Rollen:
+`llm-lab` ist **Anbieter**, andere Plugins sind **Konsumenten** — dieselbe Bauart wie `vault-rag/src/plugin_api.ts` (Anbieter) und `koda-agent/src/obsidian/retrieval.ts` (defensiver Konsument), nur mit vertauschten Rollen:
 
 ```
 llm-lab                                vault-rag / koda-agent / vault-crews / obsidian-transmute
   plugin.api ─────────────────────────► app.plugins.plugins["llm-lab"]?.api?.log(record)
-  { apiVersion: 3, status(), log() }
+  { apiVersion: 4, status(), log() }
 ```
 
 Nicht verhandelbare Eigenschaften:
 
-- **Kein Lab installiert → passiert nichts.** Der Zugriff ist ein Objekt-Lookup, der `null`
-  liefert; ein Konsument liest ihn defensiv und bricht nie, wenn LLM Lab fehlt. Die
-  Opt-in-Zusage ist damit technisch durchgesetzt, nicht versprochen.
-- **`log()` ist fire-and-forget — der Rückgabetyp ist `string`, nicht `Promise<string>`.**
-  Telemetrie darf einen laufenden Chat-Stream oder Reformat-Lauf niemals ausbremsen oder
-  abbrechen. Die Signatur ist deshalb bewusst synchron: `log(input)` vergibt die id sofort
-  und schreibt intern asynchron (`TraceStore.write` ruft `void this.writeNow(...)`, nie
-  `await`et). Ein `Promise<string>` zwänge jeden Konsumenten, der die id für einen späteren
-  Bewertungsknopf braucht, zu einem `await` mitten im Antwortpfad — genau die Kopplung, die
-  diese Regel ausschließen soll.
-- **Kein DOM über die Plugin-Grenze.** `plugin_api.ts` reicht Daten durch, nie Obsidian- oder
-  DOM-Objekte. Ein Fremdplugin, das in ein fremdes Panel rendert, koppelt an Layout und CSS;
-  eines, das eine id entgegennimmt, koppelt an eine Signatur.
-- **`apiVersion` ist der Vertrag, nicht der Compiler.** Zwei eigenständige Repos (PROF-OBS-09)
-  dürfen kein Build-Coupling eingehen — ein Konsument kopiert die Form (`LabLogInput`),
-  importiert sie nie, und prüft `apiVersion` gegen seine eigene Konstante, bevor er sich auf
-  die Form verlässt. **Sie stand ab 2026-08-23 auf `2`** (`LLM_LAB_API_VERSION`,
-  `plugin_api.ts`): `LabLogInput` trug damit zusätzlich die beiden optionalen Steuerfelder
-  `secrets?: string[]` und `contextPaths?: string[]`. Der Bump war die erste gemessene
-  Anwendung dieser Regel im Workspace — ein Konsument, der strikt auf `1` prüfte, schwieg
-  bis zu seinem Nachzug, und genau das sollte er tun. Der Preis war ein koordiniertes
-  Doppel-Release in fester Reihenfolge: **Anbieter zuerst, Konsument danach.**
-
-  **Sie steht seit 2026-08-30 auf `3`** (`LLM_LAB_API_VERSION`, `plugin_api.ts`): `LabLogInput`
-  trägt zusätzlich `promptTemplate?: string` — den stabilen Anteil des System-Prompts. Das ist
-  der zweite Bump; das Verfahren (Anbieter zuerst, Konsument danach) ist damit kein Einzelfall
-  mehr, sondern der eingespielte Weg.
-
-  **Sie steht seit 2026-09-03 auf `4`** (`LLM_LAB_API_VERSION`, `plugin_api.ts`): `LabLogInput`
-  trägt zusätzlich `turnId?: string` — die Klammer um mehrere Aufrufe EINER Nutzer-Handlung.
-  Anlass ist der bevorstehende Anschluss von `koda-agent`, dessen Agent-Loop pro Handlung
-  mehrere Aufrufe macht: wer einen einzelnen davon bewertet, bewertet ein Fragment. Dritter
-  Bump, gleiches Verfahren — **Anbieter zuerst, Konsument danach.**
-
-### Verhältnis zum Kit
-
-- **Die Redaktion kommt seit Welle 16 aus code-kit `redact` (0.18.0), vendort nach `src/vendor/kit/redact.ts`:** `redactKeysInValue` (Schlüssel, wirft fail-closed — `TraceStore.writeNow` fängt) und `createPiiRedactor({ extra })` (PII mit record-weiten Platzhaltern). Die plugin-eigene `redact_secrets.ts` ist weg, `redact_pii.ts` bleibt als dünner Mantel um den Kit-Redaktor, weil er den plugin-eigenen `TraceRecord` trägt. Die Kopier-Kette mit `vault-crews` (Übernahme 2026-08-22) endet damit.
-- **Der REGISTRY-Kandidat `TraceStore`** (`neurovim-standalone`) wird **nicht** eingelöst: 23
-  Zeilen ohne Rotation, ohne Schema, ohne Redaktion. Was hier entsteht, ist reicher und bleibt
-  zunächst im Lab, nicht im Kit. Der Kandidaten-Eintrag bleibt offen.
-- **Der i18n-Modul-Ebenen-Wächter** (`tests/i18n/keys.test.ts`) ist seit 2026-08-30 **übernommen
-  aus `vault-rag/tests/i18n/keys.test.ts`** (Herkunftsstempel im Kopf der Datei), nicht mehr eine
-  eigene Linie. Vorher standen hier zwei getrennte Textscanner (`moduleLevelDeclOffender` +
-  `classFieldOffender`); beide meldeten einen **Ausdrucks-Arrow** fälschlich —
-  `const f = (): string => t("k")` genauso wie das Klassenfeld `getLabel = () => t("k")` —,
-  obwohl dessen Rumpf erst beim Aufruf läuft. Gemeldet hatte den Klassenfeld-Fall die
-  vault-rag-Session am 2026-08-23; dass **auch die Modul-Ebene** betroffen war, zeigte erst der
-  rote Selbsttest. vault-rags Fassung löst beides in EINEM Klammer-Tiefen-Tracker (Stack
-  `"fn"`/`"class"`/`"other"`, verankerte Arrow-Ausnahme) und hat die Klassenfeld-Erkennung, die
-  früher nur hier stand, inzwischen selbst — sie war damit in beiden Punkten die reichere.
-  Der frühere Rückportier-Kandidat ist erledigt, in der anderen Richtung.
-
-  **Eine Ergänzung gegenüber der Vorlage, und sie ist ein Rückportier-Kandidat für `vault-rag`:**
-  `stripBlockComments` entfernt `/* … */` über Zeilengrenzen hinweg. Ohne das meldet der Wächter
-  ein `t("…")` in einem Doc-Kommentar als eifrigen Aufruf — gemessen an
-  `src/vendor/kit/i18n.ts:25` (`@example t("view.cardHead", 3, 7, "foo")`). `vault-rag` sieht das
-  nur deshalb nicht, weil es `src/vendor/` ausklammert; die Lücke liegt im Scanner, nicht im
-  Verzeichnis, und ein `@example` im eigenen Code trifft sie genauso. Hier wurde deshalb der
-  Scanner repariert statt das Verzeichnis ausgeklammert — Ausklammern hätte den Wächter für die
-  vendorierten Dateien ganz abgeschaltet.
-
-  **17 Selbsttests** (vorher: keiner). Der Wächter lief bis dahin ausschließlich gegen `src/`,
-  und dort ist „keine Fundstelle" sowohl das Ergebnis eines gesunden Repos als auch das eines
-  kaputten Wächters. Mutationsprobe gefahren (2026-08-30): je eine eingeschleuste Modul-Konstante
-  und ein eingeschleustes Klassenfeld werden mit `datei:zeile` gemeldet.
-
-## Datenmodell — zwei Schichten, eine Bewegung
-
-```
-<plugin-config-dir>/llm-lab/
-  traces/YYYY-MM-DD.jsonl   flüchtig · roh · rotiert (Tage + harte MB-Grenze)
-  dataset.jsonl             bleibend · redigiert · nur Bewertetes — NICHT Teil von Slice 1
-```
-
-Der **Trace** ist die flüchtige Rohschicht: append-only, eine Zeile je Aufruf, rotiert nach
-Alter und Gesamtgröße (heutige Datei nie gelöscht — sie ist die, in die gerade geschrieben
-wird). Der **Datensatz** ist die bleibende, redigierte Schicht: nur was ein Mensch bewertet,
-wird dorthin **kopiert** (nicht referenziert) — ein Trace verfällt mit der Rotation, ein
-kopierter Datensatz-Eintrag überlebt sie. Eine Referenz zeigte nach sieben Tagen ins Leere.
-
-**Slice 1 baut nur die Trace-Schicht.** `TraceRecord`/`TraceStore`/`planRotation` sind fertig
-und getestet; `dataset.jsonl`, das Kopieren beim Bewerten und jede Bewertungs-Oberfläche
-existieren als Datenmodell-Absicht in dieser Datei, nicht als Code. Wer eine
-Bewertungs-Fähigkeit baut, findet hier die Entscheidung, aber keinen Anfang zum Erweitern.
-
-## Redaktion: zwei Läufe, eine feste Reihenfolge
-
-Zwei Maskierungsläufe, **niemals in der anderen Reihenfolge**:
-
-1. **Schlüssel-Maskierung (`redactRecordSecrets`) LÄUFT IMMER, ohne Einstellung — und hat
-   seit `apiVersion` 2 auch etwas zu vergleichen.** Der exakte-String-Ersetzungslauf
-   bekommt die **Vereinigung** zweier Listen: `deps.secrets()` (die Lab-eigene Liste — sie
-   ist weiterhin leer, `main.ts` verdrahtet unverändert `secrets: () => []`, und sie ist die
-   Stelle, an der später eine im Lab konfigurierte Liste andockt) und `input.secrets` (die
-   Schlüssel, die der Konsument bei DIESEM Aufruf mitgibt). `log()` trennt das Feld explizit
-   heraus, bevor `buildTraceRecord` läuft — ein Schlüssel wird nur zum Maskieren benutzt und
-   wandert nie in den Record. Zusätzlich greift weiterhin das fest einprogrammierte
-   `BEARER`-Muster auf Token, die wörtlich in `Bearer <token>`-Form im Text auftauchen.
-   **Die Zusage bleibt trotzdem an eine Bedingung geknüpft:** ein Konsument, der `secrets`
-   nicht befüllt, bekommt genau wie vorher nur das `BEARER`-Muster — der Mechanismus läuft
-   unbedingt, das Ergebnis hängt am Aufrufer. API-Schlüssel und Bearer-Echos sind kein Inhalt
-   und kein Zweck der Erhebung — sie gehören in keine der beiden Schichten, roh oder
-   redigiert; das ist die Begründung dafür, WARUM diese Maskierung unbedingt läuft.
-2. **PII-Redaktion (`redactPii`) läuft NUR über die Textfelder** (`messages[].content`,
-   `response.content`, `response.reasoning`, `error`) und **nur wenn `redactPiiInTrace`
-   gesetzt ist** (Default: aus). PII *ist* der Inhalt und damit der Zweck der Erhebung — das
-   Debugging einer schlechten Antwort braucht, was wirklich gesendet wurde. Die Asymmetrie
-   zu Punkt 1 ist beabsichtigt und hier dokumentiert, sonst hält sie später jemand für eine
-   Lücke und „repariert" sie in die falsche Richtung.
-
-**Warum genau diese Reihenfolge und keine andere:** `redactPii`s `PHONE`-Muster ist ein
-blanker Ziffernlauf und trifft dabei auch die Ziffernfolge INNERHALB eines API-Schlüssels.
-Liefe die PII-Redaktion zuerst, zerrisse sie den Schlüssel in Fragmente — die anschließende
-exakte String-Suche der Schlüssel-Maskierung fände das Original-Literal danach nicht mehr,
-und die Fragmente landeten ungeschwärzt auf der Platte. Umgekehrt ist unbedenklich: eine
-Muster-Ersetzung zerreißt nichts, was noch geschwärzt werden müsste — nichts, was die
-Schlüssel-Maskierung erzeugt (`••••`, `Bearer ••••`), matcht EMAIL/IBAN/PHONE/URLCRED. Die
-Regel dahinter: **wer exakt matcht, muss laufen, bevor wer Muster umschreibt.**
-
-**Was die erste Abnahme gegen einen echten Konsumenten über das Feldset ergeben hat — und wie
-es aufgelöst wurde.** `systemPromptHash` trennte auf vault-rags Chat-Pfad **keine
-Prompt-Fassungen, sondern Aufrufe**: der Retrieval-Kontext steckt dort in der System-Nachricht,
-also änderte sich der Hash mit jeder Frage (gemessen 2026-08-23). Beim Entwurf der Korrektur
-zeigte die Nachmessung über alle vier Trace-Pfade, dass es kein Chat-Sonderfall war —
-`reformat:freetext` trägt die Nutzer-Anweisung im System-Prompt und hatte denselben Defekt,
-während `reformat:to-list` und `smart-apply` stabil waren. **Ein Feld, dessen Bedeutung vom
-aufrufenden Pfad abhängt, war das Problem — nicht ein kaputter Hash.** Seit `apiVersion` 3
-meldet der Konsument den stabilen Anteil selbst (`promptTemplate`), und ohne Meldung entsteht
-gar kein Hash. Messwerte in `docs/SMOKE.md` § Konsumenten-Abnahme.
-
-`TraceStore.writeNow` (`src/core/trace_store.ts`) ist die einzige Stelle, an der beide Läufe
-zusammengeführt werden — genau in dieser Reihenfolge, mit einem Kommentar-Block, der sie
-begründet, damit ein künftiger Refactor sie nicht aus Versehen vertauscht.
-
-**Die PII-Redaktion ist record-weit konsistent, nicht feldweise.** Der Platzhalter-Zähler
-(`Map<string, string>` je Muster-Label) wird EINMAL pro Record aufgebaut und über
-`messages[]`, `response.content`, `response.reasoning` und `error` hinweg geteilt — dieselbe
-Adresse bekommt in Prompt UND Antwort denselben Platzhalter. Eine feldweise Zählung würde bei
-jedem Feld neu bei `_1` anfangen; ein aus solchen Daten trainiertes Modell lernt daraus, aus
-einem Platzhalter beliebige neue Daten zu erfinden, statt die Aufgabenstruktur zu lernen. Das
-ist die eigentliche Referenzleistung dieses Moduls (`src/core/redact_pii.ts`) — s. REGISTRY.
-
-## Kein UI über die Einstellungen hinaus — das war eine Slice-1-Aussage
-
-**Slice 1 verzichtete bewusst auf jede Oberfläche außer dem Settings-Tab.** Kein
-Bewertungs-Knopf, kein Datensatz-Browser, kein Export-Dialog — alle drei setzten eine
-Datensatz-Schicht voraus, die damals nicht existierte (s. Datenmodell oben). Der Abschnitt
-bleibt stehen, weil die Begründung für diese Slice-1-Entscheidung weiter Erklärwert hat.
-
-**Seit Slice A ("Bewerten") gilt das nicht mehr — bewusst, nicht als Rückfall in eine
-UI-Wildwuchs-Phase.** Es gibt jetzt eine eigene Bewertungs-Ansicht (`LabView`, Hub im
-Hauptbereich, s. Modul-Layout unten), erreichbar über ein Ribbon-Icon und den Command
-`open-view`, dazu zwei weitere Commands für den Durchratter-Rhythmus (`rate-up`, `rate-down`)
-und einen zum Löschen (`delete-record`). Die Statusleiste und `toggle-pause` bleiben wie
-beschrieben; wer eine UI für eine künftige Slice baut, prüft weiter zuerst
-`../UI-STANDARD.md`.
-
-## Bekannte Lücken in Slice 1 — beide geschlossen (2026-08-23)
-
-Slice 1 führte hier zwei offene Lücken: Endpunkt-Schlüssel wurden nicht durch exakte
-Übereinstimmung maskiert, und eine Ordner-/Pfad-Ausschlussliste gab es überhaupt nicht.
-**Beide sind mit der Vertragserweiterung (`apiVersion` 1 → 2, 2026-08-23) geschlossen.** Der
-Abschnitt bleibt stehen, weil die Begründung, warum sie in Slice 1 offen blieben, weiter
-Erklärwert hat — und weil beide Zusagen eine benannte Bedingung behalten.
-
-**Warum sie überhaupt offen blieben:** beides ließ sich nur über den **öffentlichen
-API-Vertrag** schließen, und der war zum Zeitpunkt des Befundes bereits abgenommen — samt der
-Konsumenten-Verdrahtung in `vault-rag`. Ein Vertrags-Umbau ist kein Dokumentationsfix; er
-wurde deshalb bewusst als eigenes Vorhaben mit eigenem Versionsbump und koordiniertem
-Doppel-Release geführt statt nachträglich in eine abgenommene Slice gepatcht.
-
-**Lücke 1 — Schlüssel-Maskierung — geschlossen über `LabLogInput.secrets`.** Ein Konsument
-gibt seine Endpunkt-Schlüssel pro Aufruf mit; `log()` trennt das Feld heraus, bevor der Record
-gebaut wird (der Schlüssel ist Steuerdatum, nie Record-Inhalt), und **vereinigt** es mit
-`deps.secrets()`. **Wichtig gegen ein naheliegendes Missverständnis: das Lab hat weiterhin
-KEINE eigene Schlüsselliste** — `main.ts` verdrahtet unverändert `secrets: () => []`.
-Geschlossen ist die Lücke, weil der Aufrufer seine Schlüssel jetzt mitgeben kann, nicht weil
-das Lab sie kennt. Der Satz **„Mechanismus läuft unbedingt ≠ Ergebnis ist garantiert"** gilt
-damit weiter, nur anders aufgelöst: er hing vorher an einer Lücke im Vertrag, jetzt hängt er
-am Aufrufer — ein Konsument, der `secrets` nicht befüllt, bekommt weiterhin nur das
-`BEARER`-Muster (Kit `redact`), das einen Token trifft, der wörtlich in
-`Bearer <token>`-Form im aufgezeichneten Text auftaucht.
-
-**Lücke 2 — Ordner-Ausschluss — geschlossen über `LabLogInput.contextPaths` plus zwei
-Einstellungen.** `excludedFolders` (Ordnerpfade, Präfix-Vergleich mit Ordnergrenze, damit
-„Privat" nicht auch „Privates.md" schluckt) und `strictFolderExclusion` (Default `true`: EIN
-ausgeschlossener Pfad verhindert den Record; `false`: nur wenn ALLE beteiligten Notizen
-ausgeschlossen sind). Die Entscheidung liegt in `pathsExcluded(paths, settings)` und wird von
-`shouldLog(input, paused, settings)` kurzschließend mitgeführt (`enabled` → `paused` →
-`feature` → Pfade) — ein ausgeschlossener Pfad verhindert, dass ein Record überhaupt entsteht.
-**Die Zusage hat eine benannte Grenze, und sie ist gewollt: der Filter greift nur bei Aufrufen,
-deren Aufruf `contextPaths` meldet — fail-open.** **Die Grenze läuft je AUFRUF, nicht je
-Plugin** — am 2026-08-24 Ende-zu-Ende gemessen: vault-rags Chat meldet fünf Pfade, wenn
-Kontextnotizen angehängt sind, und **gar keine**, wenn keine beteiligt war (`currentPaths()`
-ist `pinned ∪ autoDocs`). Ein solcher Aufruf wird auch bei ausgeschlossenem Ordner
-mitgeschrieben — korrekt, weil keine Notiz beteiligt ist, aber nicht das, was ein Nutzer aus
-„vault-rag meldet Pfade" schließt. Fail-closed hieße: sobald ein Ordner
-ausgeschlossen ist, verstummt jeder Konsument, der noch keine Pfade liefert. Der Preis ist
-eine Zusage mit Bedingung, und weil das eine Nutzer-Zusage ist, steht die Bedingung im
-Settings-Tab (dritte `render`-Hatch, „Was der Ordner-Filter sieht und was nicht") und in
-beiden READMEs — nicht nur hier.
-
-## Modul-Layout (`src/`)
-
-```
-core/
-  types.ts          TraceRecord — das Feldset, das auf die Platte geschrieben wird.
-  record.ts         TraceInput → TraceRecord: hashPrompt (FNV-1a, kein Krypto-Anspruch — nur
-                    unterscheidbar, nicht geheim; laeuft seit `apiVersion` 3 ueber
-                    `promptTemplate`, nicht mehr ueber die System-Nachricht) · hostOf
-                    (Host+Port aus einer URL, faellt auf "unbekannt" zurueck statt zu
-                    werfen) · buildTraceRecord.
-  redact_pii.ts     redactPii — dünner Mantel um den Kit-Redaktor (Muster-Maskierung mit record-weiten Platzhaltern, läuft nur
-                    wenn redactPiiInTrace gesetzt ist (für den rohen Trace). Schlüssel-Maskierung: Kit `redactKeysInValue`, Lauf ist unbedingt; die Liste ist die Vereinigung aus deps.secrets() (leer) und den Aufruf-Schlüsseln (LabLogInput.secrets); ohne Aufruf-Schlüssel wirkt nur das BEARER-Muster — s. „Bekannte Lücken in Slice 1 — beide geschlossen“ oben.
-  rotation.ts       planRotation — reine Entscheidung, welche Trace-Dateien weg müssen
-                    (Alter + Größengrenze, heutige Datei geschützt), `today` als Parameter
-                    statt `Date` für Zeitreise-freie Tests.
-  settings.ts       LabSettings · DEFAULT_SETTINGS · pathsExcluded(paths, settings) —
-                    Ordner-Ausschluss (Präfix mit Ordnergrenze, fail-open ohne Pfade) ·
-                    shouldLog(input: LogDecisionInput, paused, settings) — bündelt Feature-
-                    UND Ordner-Ausschluss kurzschließend: enabled → paused → feature → Pfade.
-  trace_store.ts    TraceStore — TraceSink-Port injiziert, write() fire-and-forget,
-                    writeNow() awaitbar (nur für Tests), rotate() nach jedem Schreiben,
-                    removeRecord() liefert seit Befund I4 `Promise<boolean>` (Erfolg/Misserfolg)
-                    statt `Promise<void>` — bleibt fail-safe (wirft nie), meldet den Ausgang
-                    aber ueber den Rueckgabewert statt nur per console.warn.
-  i18n/strings.ts   EN/DE-Wörterbuch, importiert für den Registrierungs-Seiteneffekt.
-  dataset.ts        RateInput/Verdict/DatasetEntry — was der Mensch beim Bewerten beisteuert
-                    (Urteil, Tags, Notiz, Korrektur als SFT-Material) und die Zeilenform von
-                    dataset.jsonl; buildDatasetEntry() baut aus TraceRecord + RateInput einen
-                    redigierten Eintrag. parseJsonl() (geteilt mit trace_reader.ts) lebt hier.
-  dataset_store.ts  DatasetStore — die bleibende Schicht (dataset.jsonl, NEBEN traces/, damit
-                    `planRotation` sie strukturell nicht wegraeumen kann). add() haengt
-                    an (kein try/catch — ein Schreibfehler wirft bewusst durch, s. Befund I4),
-                    list() dedupliziert je trace.id ueber `ratedAt` (juengstes Urteil gewinnt,
-                    nicht die Dateireihenfolge), ratedIds() ist die Grundlage des
-                    "nur unbewertete"-Filters.
-  trace_reader.ts   TraceReader/applyFilter/TraceFilter — liest alle Tages-Trace-Dateien ein
-                    (zaehlt kaputte Zeilen durch, statt sie zu schlucken) und filtert/sortiert
-                    rein (neueste zuerst, Fehler-Records nur im eigenen Filter, LISTEN_GRENZE
-                    als harte Obergrenze fuer die DOM-Liste). `TraceReader.dayOf()` liefert den
-                    Dateinamen-Tag, den `removeRecord` braucht.
-obsidian/
-  settings_tab.ts   LabSettingTab — ZWEIGLEISIG (seit 0.2.0): getSettingDefinitions() ist die
-                    eine Struktur, get/setControlValue der Host, display() zeichnet dieselbe
-                    Liste mit dem Kit-Walker nach (Obsidian < 1.13). Enthält die drei
-                    inhaltlich verbindlichen Zeilen (Ablageort im Klartext, Grenzen der
-                    Maskierung, Grenze des Ordner-Filters) — alle drei als `render`-Hatch,
-                    s. unten.
-  vault_sink.ts     vaultSink(adapter) — dünne Anpassung von Obsidians DataAdapter an
-                    TraceSink; legt den Ordner beim ersten Schreiben an.
-  lab_view.ts       LabView — die Bewertungs-Ansicht (VIEW_TYPE_LAB), registriert im
-                    Hauptbereich, nicht der Seitenleiste (UI-STANDARD-Design, von Johannes
-                    bestaetigt: bewerten heisst System-Prompt und Antwort vergleichen, eine
-                    300px-Sidebar macht daraus eine Lese-Roehre). Duenne ItemView-Huelle um
-                    `buildHubInto` (Kit-Hub-Muster) mit den Panels als LabTabId ("rate" ·
-                    "stats" · "export" — nur "rate" ist gebaut).
-  panels/
-    rate_panel.ts       RatePanel — das Bewerten-Panel (HubPanel<"rate">). Filter-Leiste
-                        (unbewertet/Fehler/Plugin/Modell), Zeilenliste, Detailansicht,
-                        Aktionsleiste (gut/schlecht/vertiefen/löschen), Tastaturbedienung
-                        j/k/g/b/Enter/Delete. DOM ist reine Funktion des gehaltenen Zustands
-                        (UI-STANDARD §4) — nie aus dem DOM zurückgelesen. `weiter()` wählt
-                        nach einem Urteil den nächsten Record über dessen id in der neu
-                        gefilterten Liste, nicht über eine blinde Index-Verschiebung (Befund
-                        I1); `bewerte()`/`vertiefe()`/`loesche()` fangen einen scheiternden
-                        `host.rate()`/`host.remove()` und zeigen eine `Notice`, statt still
-                        zu bleiben oder eine unhandled rejection zu erzeugen (Befund I4).
-    rate_details_modal.ts  RateDetailsModal — Vertiefung zu einem Urteil (Tags, Notiz,
-                        Korrektur). Löst mit `null` auf, wenn abgebrochen wird — ein
-                        abgebrochener Dialog darf keine halbe Bewertung schreiben.
-plugin_api.ts       createLlmLabApi — der öffentliche Vertrag (s. oben).
-main.ts             Plugin-Entry: Sprache setzen, Settings laden, TraceStore/API verdrahten,
-                    Statusleiste, toggle-pause-Command, Settings-Tab registrieren, Ribbon-Icon
-                    + View + vier Commands fuer die Bewertungs-Ansicht verdrahten.
-vendor/kit/ und vendor/kit-obsidian/  Verbatim-Snapshots über `tools/kit-sync.json` (seit Welle 16, vorher
-                            von Hand mit Herkunftsstempel): code-kit 0.18.0 (`i18n`, `redact`) und
-                            obsidian-kit 0.51.3 (`confirm`, `folder-suggest`, `help-setting`, `hub`,
-                            `settings_walker`). Nie von Hand editieren, `sh tools/sync-kit.sh --check`
-                            misst Drift. Der `folder`-Zweig des Walkers ist wieder drin
-                            (`folder-suggest` wird mitvendort, der obsidian-Mock trägt
-                            `AbstractInputSuggest`).
-```
-
-**Zwei Regeln, die beim Anfassen des Settings-Tabs gelten** (beide gemessen, nicht vermutet):
-
-1. **Eine Zeile ohne Regler braucht im deklarativen Modell trotzdem einen Renderer.** Eine
-   reine name/desc-Definition überspringt der native 1.13-Renderer stillschweigend, während
-   der Fallback-Walker sie zeichnet — die beiden Pfade zeigten dann Verschiedenes, und unter
-   1.13 fiele es nie auf. Deshalb sind Ablageort, Maskierungs-Grenzen und die Grenze des
-   Ordner-Filters `render`-Hatches. Prüfpunkt 23 im GUI-Smoke bewacht genau das.
-2. **Die Wertprüfung gehört in `setControlValue`, nicht nur in `validate`.** `validate` wertet
-   allein der native Renderer aus; der Kit-Walker kennt es nicht. Ohne die Wache im Host
-   schriebe der Fallback-Pfad `NaN` in die Einstellungen (Prüfpunkt 25).
-
-**`minAppVersion` musste dafür NICHT steigen** — sie steht weiter auf 1.8.7, der Fallback
-bedient alles darunter. Die frühere Stundung dieses Umbaus („1.13-API, unsere Nutzer sind
-darunter") war in genau diesem Punkt falsch.
-
-`src/core/` importiert nirgends `obsidian` (`npm run check:pure` erzwingt das). Nur
-`main.ts`, `obsidian/settings_tab.ts` und `obsidian/vault_sink.ts` tun das.
+- **Kein Lab installiert → passiert nichts.** Der Zugriff ist ein Objekt-Lookup, der `null` liefert; ein Konsument liest ihn defensiv und bricht nie, wenn LLM Lab fehlt. Die Opt-in-Zusage ist damit technisch durchgesetzt, nicht versprochen.
+- **`log()` ist fire-and-forget — der Rückgabetyp ist `string`, nicht `Promise<string>`.** Telemetrie darf einen laufenden Chat-Stream oder Reformat-Lauf niemals ausbremsen oder abbrechen. Die Signatur ist deshalb bewusst synchron: `log(input)` vergibt die id sofort und schreibt intern asynchron (`TraceStore.write` ruft `void this.writeNow(...)`, nie `await`et). Ein `Promise<string>` zwänge jeden Konsumenten, der die id für einen späteren Bewertungsknopf braucht, zu einem `await` mitten im Antwortpfad — genau die Kopplung, die diese Regel ausschließen soll.
+- **Kein DOM über die Plugin-Grenze.** `plugin_api.ts` reicht Daten durch, nie Obsidian- oder DOM-Objekte. Ein Fremdplugin, das in ein fremdes Panel rendert, koppelt an Layout und CSS; eines, das eine id entgegennimmt, koppelt an eine Signatur.
+- **`apiVersion` ist der Vertrag, nicht der Compiler.** Zwei eigenständige Repos (PROF-OBS-09) dürfen kein Build-Coupling eingehen — ein Konsument kopiert die Form (`LabLogInput`), importiert sie nie, und prüft `apiVersion` gegen seine eigene Konstante, bevor er sich auf die Form verlässt. Ein Bump ist ein koordiniertes Doppel-Release in fester Reihenfolge: **Anbieter zuerst, Konsument danach.** Stand: `4` (`LLM_LAB_API_VERSION` in `plugin_api.ts`); die Geschichte der Bumps steht in `docs/internal/decisions.md`.
+- **Redaktion: zuerst die Schlüssel (exakte Ersetzung), dann PII (Muster) — niemals in der anderen Reihenfolge.** Die Schlüssel-Maskierung läuft immer, die PII-Redaktion nur mit `redactPiiInTrace`. Gründe und die einzige Stelle, an der beide zusammenkommen (`TraceStore.writeNow`): `.claude/rules/redaktion.md`.
+- `src/core/` importiert nirgends `obsidian` (`npm run check:pure` erzwingt das). Nur `main.ts` und `src/obsidian/` (Settings-Tab, Sink, Ansicht, Panels) tun das.
 
 ## Commands
 
@@ -377,10 +45,9 @@ npm run lint                      # check-no-inline-disables + eslint src --max-
 npm run check:pure                # scripts/check-pure.mjs — src/core darf obsidian nicht importieren
 npm run gate                      # lint + typecheck + typecheck:test + typecheck:scripts + test + check:pure + build
 OBSIDIAN_PLUGIN_DIR=… npm run deploy   # build + main.js/manifest.json/styles.css ins Vault-Plugin-Verzeichnis
-STAGING_VAULTS_DIR=… npm run smoke:gui -- --setup         # Pruef-Vault aus docs/images/fixture/ bauen
-STAGING_VAULTS_DIR=… npm run smoke:gui -- --vault llm-lab # 38 Pruefpunkte gegen ein laufendes Obsidian
-npm run smoke:e2e                 # 10 Pruefpunkte ueber die echte Plugin-Grenze (setzt vault-rag
-                                  # UND llm-lab installiert voraus — nicht Teil von gate/smoke:gui)
+STAGING_VAULTS_DIR=… npm run smoke:gui -- --setup         # Prüf-Vault aus docs/images/fixture/ bauen
+STAGING_VAULTS_DIR=… npm run smoke:gui -- --port <port> --vault llm-lab   # GUI-Smoke gegen eine Zweitinstanz (Rezept im Kopf von scripts/gui-smoke.ts)
+npm run smoke:e2e -- --port <port>   # Prüfpunkte über die echte Plugin-Grenze (setzt vault-rag UND llm-lab installiert voraus — nicht Teil von gate/smoke:gui)
 npm run version-bump / preflight / release   # delegieren ans zentrale ../tools/release/ (Dach)
 ```
 
@@ -388,99 +55,30 @@ npm run version-bump / preflight / release   # delegieren ans zentrale ../tools/
 
 - **TS strict + `noImplicitAny`** — keine `any`-Casts für neue Typen.
 - **TDD** (`superpowers:test-driven-development`): der reine Kern wird test-first gebaut.
-- **Tests:** vitest, Node-Umgebung — `src/core/` braucht keinen DOM-Mock, weil es kein DOM
-  berührt. Nach jeder Änderung müssen alle Tests grün bleiben.
-- **GUI-Smoke (CORE-TEST-02 b):** `scripts/gui-smoke.ts` prüft gegen ein **laufendes**
-  Obsidian, was gegen einen Mock strukturell nicht prüfbar ist — allen voran den Datei-Weg
-  (`vault_sink.ts`) und die Rotation, die daran hängt, dass `adapter.stat()` unter
-  `.obsidian/` eine Größe liefert. Prüfpunkte, Aufruf und Durchlauf-Vermerke stehen in
-  `docs/SMOKE.md`; die CDP-Brücke kommt zentral aus `../tools/obsidian-cdp/` und wird
-  importiert, nie vendored. Wer `vault_sink.ts`, `rotation.ts`, `main.ts::renderStatus` oder
-  die Zeilen-Reihenfolge im Settings-Tab anfasst, fährt ihn — dort misst keine vitest-Suite mit.
-
-  **Der Treiber prüft seit 2026-09-02 zuerst, ob er überhaupt den eigenen Stand misst** — und
-  zwar am Pfad, den die **laufende Instanz** nennt (`app.vault.adapter.basePath` +
-  `app.vault.configDir`), nicht an `stagingVaultDir("llm-lab")`. Der Unterschied ist
-  load-bearing: `--vault` dockt an ein beliebiges Fenster an, ein aus der Konvention
-  abgeleiteter Pfad prüft dann eine Datei, die mit dem Lauf nichts zu tun hat. Deshalb steht
-  der Abgleich **hinter** `attachTo` — davor ist gar nicht bekannt, wogegen gemessen wird.
-  Zwei Prüfungen nebeneinander, nicht hintereinander: der 3-Datei-Hash (`main.js`,
-  `manifest.json`, `styles.css`) fängt das vergessene Kopieren, `requireEigenerBuild` den
-  fremden Build — `manifest.version` ist dafür strukturell blind, weil Store- und Repo-Build
-  dieselbe Nummer tragen. Gemessen am selben Tag: der Staging-Vault trug `manifest.json`
-  0.3.0 bei byte-identischer `main.js` 0.4.0, ein reiner `main.js`-Vergleich hätte das
-  durchgewinkt.
-
-  ⚠️ **Wer die Gegenprobe dazu wiederholt, muss die Erreichbarkeit der Ausgänge kennen:**
-  solange der Repo-Build existiert, entscheidet der sha1-Vergleich, und `buildHerkunft`
-  liefert **nur** `deployt`/`fremd`. `store-installiert` und `ungeklaert` sind dann
-  unerreichbar — wer bloß ein `nosourcemap`-Suffix anhängt und „Store-Installation" erwartet,
-  bekommt `fremd`, prüft zwei Ausgänge und hält es für vier. Für die beiden muss der
-  Repo-Build weichen. Und keiner der vier belegt die eigentliche Zusage: dafür braucht es
-  einen Lauf gegen ein **fremdes** Fenster (`--vault <anderer>`), der abbricht, wo der alte
-  Code grün gewesen wäre. Beides steht ausgeführt in `docs/SMOKE.md`.
-- **i18n:** nutzersichtbare Strings via `t()` (`src/vendor/kit/i18n.ts`), EN kanonisch + DE.
-  **Nie ein `t()`-Aufruf auf Modul-Ebene oder in einem Klassenfeld** — `setLang()` läuft in
-  `onload`, nach der Modul-Auswertung; ein `t()` davor friert die Sprache still auf den
-  Default ein. `tests/i18n/keys.test.ts` ist der (verbreiterte) Wächter dafür.
-- **Commits:** Conventional Commits, deutsche Beschreibung erlaubt. **Nur berührte Dateien
-  stagen — nie `git add -A`.** Trailer bei substanziellem AI-Beitrag:
-  `Co-Authored-By: Claude Opus <Version> (1M context) <noreply@anthropic.com>`.
+- **Tests:** vitest, Node-Umgebung — `src/core/` braucht keinen DOM-Mock, weil es kein DOM berührt. Nach jeder Änderung müssen alle Tests grün bleiben.
+- **GUI-Smoke (CORE-TEST-02 b):** `scripts/gui-smoke.ts` prüft gegen ein **laufendes** Obsidian, was gegen einen Mock strukturell nicht prüfbar ist — allen voran den Datei-Weg (`vault_sink.ts`) und die Rotation, die daran hängt, dass `adapter.stat()` unter `.obsidian/` eine Größe liefert. Prüfpunkte, Aufruf und Durchlauf-Vermerke stehen in `docs/SMOKE.md`; die CDP-Brücke kommt zentral aus `../tools/obsidian-cdp/` und wird importiert, nie vendored. Wer `vault_sink.ts`, `rotation.ts`, `main.ts::renderStatus` oder die Zeilen-Reihenfolge im Settings-Tab anfasst, fährt ihn — dort misst keine vitest-Suite mit. Der Treiber prüft zuerst, ob er den eigenen Stand misst (Hash über drei Dateien plus `requireEigenerBuild`, gemessen am Pfad der laufenden Instanz): `docs/SMOKE.md`.
+- **i18n:** nutzersichtbare Strings via `t()` (`src/vendor/kit/i18n.ts`), EN kanonisch + DE. **Nie ein `t()`-Aufruf auf Modul-Ebene oder in einem Klassenfeld** — `setLang()` läuft in `onload`, nach der Modul-Auswertung; ein `t()` davor friert die Sprache still auf den Default ein. `tests/i18n/keys.test.ts` ist der (verbreiterte) Wächter dafür.
+- **Commits:** Conventional Commits, deutsche Beschreibung erlaubt. **Nur berührte Dateien stagen — nie `git add -A`.** Trailer bei substanziellem AI-Beitrag: `Co-Authored-By: <Modell> <noreply@anthropic.com>`.
+- **Nie absolute Pfade außerhalb des Repos in Repo-Dateien** — Platzhalter (`$VAULT/…`) verwenden.
 
 ## Gotchas
 
-- **`log()` gibt die id SYNCHRON zurück, obwohl `TraceStore.write` intern async schreibt.**
-  Das ist kein Rennen: die id wird VOR dem Schreiben vergeben (`deps.newId()` in
-  `plugin_api.ts`), der Schreibvorgang selbst läuft danach fire-and-forget. Ein Konsument, der
-  die id für einen späteren Bewertungsknopf braucht, bekommt sie also garantiert, auch wenn
-  der zugehörige Trace erst Millisekunden später tatsächlich auf der Platte steht.
-- **`shouldLog(input: LogDecisionInput, paused, settings)` nimmt seit `apiVersion` 2 ein
-  Objekt (`{ feature, contextPaths? }`), keinen Feature-String mehr** — Feature- und
-  Ordner-Ausschluss stehen bewusst in EINER Funktion. Zwei getrennte, die jeder Aufrufer
-  selbst kombinieren muss, sind die Fehlerklasse, bei der eine Schicht später vergessen wird.
-  Ausgewertet wird kurzschließend in dieser Reihenfolge: `enabled` → `paused` → `feature` →
-  Pfade. Dass `paused` dabei ignoriert wird, wenn `settings.enabled` schon `false` ist, macht
-  die beiden Bedingungen nicht gleich: `enabled` ist persistiert, `paused` ist Sitzungszustand
-  und wird bewusst NICHT persistiert (eine Pause soll beim nächsten Start von selbst enden).
-  Der Pfad-Schritt ist **fail-open**: ohne `contextPaths` greift er nicht (s. „Bekannte Lücken
-  in Slice 1 — beide geschlossen" oben).
-- **`redactRecordSecrets`/`redactPii` arbeiten über die Serialisierung** (`JSON.stringify`/
-  `JSON.parse` bzw. Feld-für-Feld-Rekonstruktion), nicht über eine Liste zu pflegender Felder
-  — eine Feldliste wäre genau die Buchhaltung, die beim nächsten neuen `TraceRecord`-Feld
-  still veraltet. `redactRecordSecrets` wirft dementsprechend auf nicht-serialisierbarem
-  Input; das ist beabsichtigt und fail-closed (`TraceStore.writeNow` fängt den Fehler, sodass
-  nie ein Geheimnis ungeschwärzt geschrieben wird).
-- **`vaultSink.list` liefert eine leere Liste, wenn der Ordner noch nicht existiert** (statt zu
-  werfen) — `planRotation` bekommt dann `[]` und tut nichts, was für den allerersten Schreib-
-  vorgang korrekt ist (kein Ordner, keine Dateien zum Rotieren).
-- **Alle verändernden Zugriffe auf die Trace-Schicht laufen über EINE Promise-Kette**
-  (`TraceStore.serialize`). Bis 2026-09-03 gab es keine: `write()` rief `void this.writeNow(...)`
-  direkt, zwei gleichzeitige Aufrufe überlappten einander samt der `rotate()` dahinter. Mit dem
-  zeilenweisen Entfernen (`removeRecord`) wäre daraus stiller Datenverlust geworden — ein
-  `append` zwischen `read` und `write` wird überschrieben. **`write()` bleibt fire-and-forget:**
-  die Kette ändert nichts an der Zusage, dass Telemetrie den Aufrufer nie bremst. Wer eine neue
-  verändernde Operation ergänzt, hängt sie in die Kette — und ruft **nie** `rotate()` aus einem
-  Job heraus auf (Selbst-Deadlock), sondern `rotateNow()`.
-- **`data.json`** ist die von Obsidian persistierte Plugin-Konfig (`saveData`) — git-ignored.
-- **`main.js`** ist Build-Artefakt (gitignored) — nie von Hand editieren.
-- **`styles.css` ist seit Slice A NICHT mehr leer** (~97 Zeilen). Bis Slice A trug die Datei
-  keine eigene CSS-Klasse (nur native `Setting`-Zeilen und ein Statusleisten-Icon über
-  `setIcon`) und lag nur deshalb getrackt im Repo-Root, weil `npm run deploy` und
-  `.github/workflows/release.yml` sie als Pflicht-Asset behandeln (kanonische Vorlage) — ohne
-  die Datei würde beides brechen. Mit der Bewertungs-Ansicht kam eigenes UI dazu: die Datei
-  trägt jetzt die Hub-Tab-Leiste (vendort aus `obsidian-kit`, Herkunftsstempel im
-  Dateikopf — das Kit injiziert kein CSS, Consumer übernehmen die Regeln in ihre eigene
-  `styles.css`) und das Bewerten-Panel-CSS. Nur Theme-CSS-Variablen, keine festen Farben
-  (UI-STANDARD §3).
+- ⚠️ **Das Plugin kann nicht selbst merken, dass es niemand benutzt — und alle Prüfungen bleiben dabei grün.** Am 2026-09-02 gemessen: in `10_Pallas` war seit dem ersten Release **kein einziger echter Record** entstanden (`.obsidian/plugins/llm-lab/` trug nur die drei Deploy-Dateien, weder `traces/` noch `data.json`), obwohl llm-lab 0.4.0 und vault-retrieval 0.29.0 installiert **und** aktiviert waren und die Verdrahtung im Build steckte. Kein Defekt: `vault-rag` ist der einzige Konsument, und sein Chat wurde nicht benutzt. **Gate und GUI-Smoke können das strukturell nicht melden — der Smoke erzeugt seine Prüf-Records selbst.** Wer „38/38 grün" liest, weiß damit, dass der Schreibweg funktioniert, *nicht* dass etwas aufgezeichnet wird. Die Frage „fließen Daten?" beantwortet nur ein Blick in den Plugin-Ordner des Arbeitsvaults. Folge für jede Slice, die auf Daten aufbaut: **erst den Konsumenten anschließen, dann die Auswertung bauen** — sonst entsteht eine Oberfläche für eine leere Datei.
 
-## Dach-Kontext (obsidian-plugins)
+## Context index
 
-Dieses Repo liegt unter dem Koordinations-Dach `obsidian-plugins/` (Elternverzeichnis) und ist
-ein **eigenständiges Git-Repo** (PROF-OBS-09: kein Monorepo, eigener Release-Takt, Kit per
-git-Tag). **Vor dem Lösen eines Problems:** `../AGENTS.md` (Kit-first-Regel) und
-`../REGISTRY.md` (Lösungs-Registry) prüfen. **Vor jeder UI-Arbeit:** `../UI-STANDARD.md`.
+- Bevor du Redaktion, Maskierung oder den Record-Bau (`redact_pii.ts`, `record.ts`, `TraceStore.writeNow`) änderst: `.claude/rules/redaktion.md`.
+- Bevor du `log()`, `shouldLog`, `contextPaths`/`secrets` oder den Ordner-Ausschluss änderst: `.claude/rules/vertrag-und-ausschluss.md`.
+- Bevor du den Sink, die Rotation, das Entfernen oder den Datensatz (`trace_store.ts`, `vault_sink.ts`, `dataset_store.ts`) änderst: `.claude/rules/trace-schicht.md`.
+- Bevor du den Settings-Tab änderst: `.claude/rules/settings-tab.md`.
+- Vor Änderungen an Datenmodell oder Modul-Layout: `docs/internal/architecture.md`.
+- Bevor du eine Altentscheidung übernimmst (apiVersion-Bumps, Kit-Verhältnis, UI-Umfang): `docs/internal/decisions.md`.
+- Vor einem GUI-Smoke oder einem Lauf gegen ein Fenster: `docs/SMOKE.md`; Obsidian-Instanz, Lock, Treiber und Staging-Vaults stehen als Pfadregeln im Dach unter `../.claude/rules/`.
 
-**Cockpit:** `$VAULT/25_Coding/llm-lab/` (Stand, Tasks, Session-Log — mnemetisches
-Substrat/SSOT). **SDD-Artefakte (Spec/Plan) liegen dort unter `_SDD/`, nicht im Repo**
-(CORE-META-14) — das Repo behält die verdichtete Design-Essenz hier und im CHANGELOG.
-**Nie absolute Pfade außerhalb des Repos in Repo-Dateien** — Platzhalter (`$VAULT/…`) verwenden.
+## Memory
+
+- **Cockpit:** `$VAULT/25_Coding/llm-lab/` (Stand, Tasks, Session-Log — mnemetisches Substrat/SSOT). **SDD-Artefakte (Spec/Plan) liegen dort unter `_SDD/`, nicht im Repo** (CORE-META-14) — das Repo behält die verdichtete Design-Essenz in `docs/internal/` und im CHANGELOG.
+
+## Abweichungen von der Leitkonvention
+
+Keine.

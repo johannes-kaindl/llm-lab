@@ -49,7 +49,7 @@ LAUFENDE Instanz nennt** (`app.vault.adapter.basePath` + `app.vault.configDir`) 
 `stagingVaultDir("llm-lab")`:
 
 1. **Hash-Abgleich über drei Dateien** (`main.js`, `manifest.json`, `styles.css`): misst das
-   vergessene Kopieren. Bricht ab, `--ignore-deploy` übergeht ihn.
+   vergessene Kopieren. Bricht ab, `--ignore-deploy` übergeht ihn. Gemessen am 2026-09-02: der Staging-Vault trug `manifest.json` 0.3.0 bei byte-identischer `main.js` 0.4.0, ein reiner `main.js`-Vergleich hätte das durchgewinkt.
 2. **`requireEigenerBuild`** (zentral, `../tools/obsidian-cdp/vault.ts`): beantwortet die
    Frage, gegen die `manifest.version` **strukturell blind** ist — Store-Build und Repo-Build
    tragen dieselbe Nummer. `fehlt`/`store-installiert`/`fremd` brechen ab; `ungeklaert`
