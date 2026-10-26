@@ -70,6 +70,19 @@ const THUMB_WIDTH = 380;
 const PADDING = 12;
 const FENSTER_BREITE = 1440;
 const FENSTER_HOEHE = 900;
+/** `hero.png`: in 900 px Fensterhöhe füllt das Detail der Bewerten-Zeile die Panelhöhe, und zwischen „980 ms“ und der Aktionsleiste (Good/Poor/…) bleibt eine leere
+ *  Fläche aus identischen Zeilen (readme_lint `image-whitespace`, 26 % statt der erlaubten 25 %). Ein niedrigeres Fenster kürzt das Panel und damit die Leere, ohne
+ *  etwas abzuschneiden: gemessen am vollen Lauf, siehe `docs/images/README.md`. */
+const HERO_HOEHE = 760;
+/** Anläufe für den Bestand von `hero.png` (siehe dort). */
+const HERO_VERSUCHE = 3;
+/** `rate-empty.png`: der Streifen (Filterleiste, eine Textzeile) trägt unter der Textzeile einen Rand aus identischen Zeilen; der Vorgabewert von `inhaltsBox`
+ *  (16 px) ließ ihn bei 30 %. Ein kleinerer Rand kürzt nur diesen Rand, die Zeile bleibt ganz. */
+const LEER_RAND = 3;
+/** `rate-empty.png`: Breite des Fensters. Bei 1440 px ist der Leerzustand ein 103 px hoher Streifen, dessen längste Folge identischer Zeilen die Lücke zwischen Filterleiste und
+ *  Textzeile ist (29 px, 28 %), und ein Zuschnitt macht sie nicht kürzer. Bei 1000 px bricht die Textzeile um (eine echte zweite Zeile, nichts gestaucht), der Streifen ist 213 px hoch
+ *  und die längste Folge 52 px (24 %). */
+const LEER_BREITE = 1000;
 
 /** Generisch und englisch, an die Fixture-Notizen angelehnt (`docs/images/fixture/notes/`) —
  *  keine echten Namen, Firmen, Nummern, Adressen (Skill readme-shots). */
@@ -265,6 +278,10 @@ async function inhaltsBox(cdp: Cdp, rootSelector: string, bottomPadding = 16): P
 interface Shot {
   name: string;
   klasse: "hero" | "feature" | "detail";
+  /** Fensterhöhe für dieses Bild; ohne Angabe `FENSTER_HOEHE`. */
+  hoehe?: number;
+  /** Fensterbreite für dieses Bild; ohne Angabe `FENSTER_BREITE`. */
+  breite?: number;
   run(cdp: Cdp, base: string): Promise<Rect | null>;
 }
 
@@ -273,6 +290,7 @@ const SHOTS: Shot[] = [
     // Zuerst, VOR dem Seeden: der Empty-State existiert nur, solange nichts angekommen ist.
     name: "rate-empty.png",
     klasse: "detail",
+    breite: LEER_BREITE,
     async run(cdp, base) {
       await zustandZuruecksetzen(cdp, base);
       if (!(await rateTabBereit(cdp, 0))) return null;
@@ -283,26 +301,39 @@ const SHOTS: Shot[] = [
         console.log("      · kein .llm-lab-empty im DOM");
         return null;
       }
-      return inhaltsBox(cdp, ".llm-lab-rate");
+      return inhaltsBox(cdp, ".llm-lab-rate", LEER_RAND);
     },
   },
   {
     name: "hero.png",
     klasse: "hero",
+    hoehe: HERO_HOEHE,
     async run(cdp, base) {
-      await seedRecords(cdp, base);
-      if (!(await rateTabBereit(cdp, SEED_RECORDS.length))) return null;
-      // Erste sichtbare Zeile auswaehlen — welcher der vier Beispieldatensaetze das ist,
-      // haengt von der Sortierung der Bewerten-Ansicht ab (neueste zuerst), nicht von der
-      // Seed-Reihenfolge oben. Der Vertrag verlangt nur "eine Zeile mit vollem
-      // Prompt/Antwort-Detail darunter", nicht ein bestimmtes Beispiel.
+      // Das Seeden verliert gelegentlich eine Zeile in der Ansicht („3 von 4“, gemessen 2026-10-26 in vier von acht Läufen, die Platte trägt alle vier): bis zu
+      // HERO_VERSUCHE Anläufe, jeder ab dem zweiten mit Rücksetzen, statt einen Lauf mit unvollständigem Bestand aufzunehmen.
+      let bereit = false;
+      for (let versuch = 1; versuch <= HERO_VERSUCHE && !bereit; versuch++) {
+        if (versuch > 1) await zustandZuruecksetzen(cdp, base);
+        await seedRecords(cdp, base);
+        bereit = await rateTabBereit(cdp, SEED_RECORDS.length);
+        if (!bereit) {
+          const da = await cdp.evaluate<number>(`return document.querySelectorAll(".llm-lab-zeile").length;`);
+          console.log(`      · Versuch ${versuch}: ${da} von ${SEED_RECORDS.length} Zeilen in der Bewerten-Ansicht`);
+        }
+      }
+      if (!bereit) return null;
+      // Die Zeile der Suche (koda-agent / search): ihr Detail ist das längste, und die vier Datensätze tragen denselben Zeitstempel auf die Minute,
+      // so dass „die erste Zeile“ von Lauf zu Lauf eine andere wäre (ein kurzes Detail ließ unter der Antwort eine leere Fläche, 49 % statt 12 %).
       const ausgewaehlt = await cdp.evaluate<boolean>(`
-        const zeile = document.querySelector(".llm-lab-zeile");
+        const zeile = [...document.querySelectorAll(".llm-lab-zeile")].find((z) => (z.textContent || "").includes("search"));
         if (!zeile) return false;
         zeile.click();
         return true;
       `);
-      if (!ausgewaehlt) return null;
+      if (!ausgewaehlt) {
+        console.log("      · keine Zeile zur Suche (koda-agent / search)");
+        return null;
+      }
       // Gepollt statt fixer Pause: das Detail unter der Zeile rendert nach dem Klick
       // asynchron, ein fester 300ms-Schlaf war im Volllauf (nicht isoliert) beobachtbar
       // knapp zu kurz und lieferte einmalig ein 0x0-.llm-lab-rate.
@@ -503,7 +534,6 @@ async function main(): Promise<void> {
 
   const base = `${vaultInfo.configDir}/plugins/${PLUGIN_ID}`;
 
-  await setWindowSize(cdp, FENSTER_BREITE, FENSTER_HOEHE);
   await setAppConfig(cdp, "readableLineLength", false);
   await setAppConfig(cdp, "showInlineTitle", false);
   await closeExtraLeaves(cdp);
@@ -520,6 +550,7 @@ async function main(): Promise<void> {
   for (const shot of SHOTS) {
     if (nur && shot.name !== nur) continue;
     try {
+      await setWindowSize(cdp, shot.breite ?? FENSTER_BREITE, shot.hoehe ?? FENSTER_HOEHE);
       const box = await shot.run(cdp, base);
       const png = box ? await capture(cdp, box) : null;
       if (!png) {

@@ -24,6 +24,17 @@ Alle drei sind **Handgriffe des Maintainers** bzw. der aufnehmenden Session, kei
 | `rate-details.png` | detail | README.md (Usage) | Das Vertiefungs-Modal („Add detail to this rating") offen über einer Aufzeichnung: Tags, Note, die volle-Modalbreite-Textarea „Better answer" |
 | `rate-empty.png` | detail | README.md (Usage) | Den Bewerten-Tab, bevor irgendeine Aufzeichnung angekommen ist — der Empty-State-Text („No recordings yet. …") |
 
+## Fenstergröße je Bild
+
+Der Treiber setzt die Fenstergröße je Bild vor der Aufnahme (`hoehe` und `breite` am `Shot`, sonst 1440 × 900). Gemessen wird mit `npm run shots:check` (`readme_lint`, `image-whitespace`: die längste Folge identischer Zeilen darf höchstens 25 % der Bildhöhe sein).
+
+| Bild | Fenster | Warum |
+|---|---|---|
+| `hero.png` | 1440 × 760 | In 900 px Höhe füllt das Detail die Panelhöhe, zwischen „980 ms" und der Aktionsleiste bleibt eine leere Fläche (26 %); bei 760 px sind es 12 % und nichts ist abgeschnitten. Der Treiber wählt die Zeile der Suche (`koda-agent` / `search`), nicht „die erste": die vier Datensätze tragen denselben Zeitstempel auf die Minute, die Reihenfolge wechselt, und ein kurzes Detail ließ 49 % Leere. |
+| `rate-empty.png` | 1000 × 900, unterer Rand 3 px | Bei 1440 px ist die längste Folge die Lücke zwischen Filterleiste und Textzeile (29 von 103 px, 28 %), ein Zuschnitt kürzt sie nicht. Bei 1000 px bricht die Textzeile um, der Streifen ist 213 px hoch, die längste Folge 52 px (24 %). |
+
+`hero.png` seedet bis zu dreimal: die Bewerten-Ansicht zeigt nach dem Seeden gelegentlich „3 von 4" Zeilen, obwohl die Platte alle vier trägt (gemessen 2026-10-26, vier von acht Läufen, Ursache nicht geklärt); jeder Anlauf ab dem zweiten setzt zurück.
+
 Kein GIF: nichts an dieser Oberfläche braucht Bewegung als Aussage (keine Animation, kein
 Ablauf über Zeit) — der Durchratter-Rhythmus (`j`/`k`/`g`/`b`) ist Tastaturbedienung, kein
 visuelles Ereignis.
