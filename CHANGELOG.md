@@ -6,6 +6,8 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.9.3] — 2026-10-26
+
 ### Changed
 
 - README images re-recorded without empty space: the Rate tab picture (`hero.png`) shows the whole detail without a blank band, and the empty-state picture (`rate-empty.png`) is taller because its text now wraps onto a second line. Nothing in the plugin changes.
