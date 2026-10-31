@@ -2,5 +2,5 @@
   "source": "code-kit",
   "version": "0.34.0",
   "sha": "065b068",
-  "vendored": "folder-scope.ts, i18n.ts, redact.ts, rel-path.ts"
+  "vendored": "folder-scope.ts (code-kit@0.44.0, ba02b6b), fold-case.ts (code-kit@0.44.0, ba02b6b), i18n.ts, redact.ts, rel-path.ts"
 }

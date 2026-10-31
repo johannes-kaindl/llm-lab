@@ -13,7 +13,14 @@
       "source": "code-kit",
       "from": "src/ts/pure",
       "modules": [
-        "folder-scope",
+        {
+          "name": "folder-scope",
+          "ref": "0.44.0"
+        },
+        {
+          "name": "fold-case",
+          "ref": "0.44.0"
+        },
         "i18n",
         "redact",
         "rel-path"
