@@ -22,7 +22,10 @@
           "ref": "0.44.0"
         },
         "i18n",
-        "redact",
+        {
+          "name": "redact",
+          "ref": "0.60.0"
+        },
         "rel-path"
       ]
     },
