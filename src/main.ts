@@ -30,7 +30,7 @@ export default class LlmLabPlugin extends Plugin {
     const loaded = (await this.loadData()) as Partial<LabSettings> | null;
     this.settings = { ...DEFAULT_SETTINGS, ...loaded };
 
-    const base = this.manifest.dir ?? `.obsidian/plugins/${this.manifest.id}`;
+    const base = this.manifest.dir ?? `${this.app.vault.configDir}/plugins/${this.manifest.id}`;
     const sink = vaultSink(this.app.vault.adapter);
     this.store = new TraceStore(
       sink,

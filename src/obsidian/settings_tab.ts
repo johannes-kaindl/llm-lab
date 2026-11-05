@@ -183,7 +183,7 @@ export class LabSettingTab extends PluginSettingTab implements SettingControlHos
           setting.setDesc(
             t(
               "settings.location.desc",
-              this.plugin.manifest.dir ?? `.obsidian/plugins/${this.plugin.manifest.id}`,
+              this.plugin.manifest.dir ?? `${this.app.vault.configDir}/plugins/${this.plugin.manifest.id}`,
             ),
           );
         },
