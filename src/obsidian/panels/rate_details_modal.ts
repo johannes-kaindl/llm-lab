@@ -1,5 +1,6 @@
 import { Modal, Setting, type App } from "obsidian";
 import { t } from "../../vendor/kit/i18n";
+import { splitList } from "../../vendor/kit/split-list";
 import type { RateInput, Verdict } from "../../core/dataset";
 
 /** Vertiefung zu einem Urteil. Loest mit `null` auf, wenn abgebrochen wird —
@@ -52,7 +53,7 @@ export class RateDetailsModal extends Modal {
         b.setButtonText(t("details.save")).setCta().onClick(() => {
           this.ergebnis = {
             verdict: this.verdict,
-            tags: this.tags.split(",").map((x) => x.trim()).filter(Boolean),
+            tags: splitList(this.tags),
             note: this.note,
             correction: this.correction,
           };

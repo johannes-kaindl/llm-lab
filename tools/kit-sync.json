@@ -26,7 +26,11 @@
           "name": "redact",
           "ref": "0.60.0"
         },
-        "rel-path"
+        "rel-path",
+        {
+          "name": "split-list",
+          "ref": "0.63.0"
+        }
       ]
     },
     {
