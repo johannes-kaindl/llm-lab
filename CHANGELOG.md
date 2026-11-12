@@ -6,6 +6,8 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.9.4] — 2026-11-12
+
 ### Fixed
 
 - **The Rate tab shows entries that arrive while it is open.** The tab used to read the trace files only when it was opened, so a call logged a moment later (or the last of several calls logged in a row) did not appear until you switched tabs and back. It now re-reads shortly after each new entry, and does not redraw if nothing changed.
