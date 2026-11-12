@@ -22,7 +22,15 @@ export interface RatePanelHost {
    *  bewusst ab (fail-safe) und wirft nie; ohne diesen Rueckkanal waere ein gescheitertes
    *  Loeschen fuer das Panel nicht von einem erfolgreichen zu unterscheiden (Befund I4). */
   remove(trace: TraceRecord): Promise<boolean>;
+  /** Meldet jeden neu auf die Platte geschriebenen Eintrag (Abbau als Rueckgabe). Ohne ihn liest die
+   *  Ansicht nur beim Oeffnen und zeigt einen waehrenddessen eintreffenden Eintrag nie (gemessen
+   *  2026-11-12: 3 von 4 Zeilen, wenn der Tab vor dem letzten Eintrag geoeffnet wurde). */
+  onTraceWritten?(lauscher: () => void): () => void;
 }
+
+/** Wie lange nach einer Meldung gesammelt wird, bevor die Ansicht neu liest: eine Folge von
+ *  `log()`-Aufrufen (ein Lauf, ein Stapel) soll EIN Lesen und EIN Neuzeichnen kosten. */
+const NACHLADEN_VERZOEGERUNG_MS = 250;
 
 export class RatePanel implements HubPanel<"rate"> {
   readonly id = "rate" as const;
@@ -39,6 +47,13 @@ export class RatePanel implements HubPanel<"rate"> {
   private kaputt = 0;
   private ratedIds = new Set<string>();
   private auswahl = 0;
+  /** Zaehlt die Lesevorgaenge: ein aelterer, spaeter fertiger darf den neueren nicht ueberschreiben. */
+  private leseFolge = 0;
+  /** Fingerabdruck der zuletzt gezeichneten Daten: eine Meldung ohne neuen Inhalt zeichnet nicht neu
+   *  (ein offenes Filter-Dropdown wuerde sonst mitten in der Auswahl geschlossen). */
+  private gezeichnet: string | null = null;
+  private abbauLauscher: (() => void) | null = null;
+  private nachladen: number | null = null;
 
   constructor(private readonly host: RatePanelHost) {}
 
@@ -49,18 +64,46 @@ export class RatePanel implements HubPanel<"rate"> {
 
   onShow(): void {
     this.root.focus();
+    this.abbauLauscher ??= this.host.onTraceWritten?.(() => this.planeNachladen()) ?? null;
     void this.reload();
   }
 
+  onHide(): void {
+    this.beendeLauschen();
+  }
+
   destroy(): void {
+    this.beendeLauschen();
     this.root.empty();
   }
 
+  private beendeLauschen(): void {
+    this.abbauLauscher?.();
+    this.abbauLauscher = null;
+    if (this.nachladen !== null) window.clearTimeout(this.nachladen);
+    this.nachladen = null;
+  }
+
+  private planeNachladen(): void {
+    if (this.nachladen !== null) return;
+    this.nachladen = window.setTimeout(() => {
+      this.nachladen = null;
+      void this.reload();
+    }, NACHLADEN_VERZOEGERUNG_MS);
+  }
+
   private async reload(): Promise<void> {
+    const folge = ++this.leseFolge;
     const { rows, kaputt } = await this.host.reader().all();
+    const rated = await this.host.ratedIds();
+    // Ein neuerer Lesevorgang hat begonnen, waehrend dieser wartete: sein Ergebnis gilt.
+    if (folge !== this.leseFolge) return;
+    const stand = `${rows.map((r) => r.id).join(",")}|${kaputt}|${[...rated].sort().join(",")}`;
+    if (stand === this.gezeichnet) return;
+    this.gezeichnet = stand;
     this.rows = rows;
     this.kaputt = kaputt;
-    this.ratedIds = await this.host.ratedIds();
+    this.ratedIds = rated;
     this.render();
   }
 

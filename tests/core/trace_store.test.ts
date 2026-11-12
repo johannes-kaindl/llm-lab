@@ -291,3 +291,36 @@ describe("TraceStore — Serialisierung", () => {
     await expect(store.removeRecord("2026-09-03", "gibtsnicht")).resolves.toBe(false);
   });
 });
+
+describe("TraceStore.onWritten — Ansichten erfahren von neuen Eintraegen", () => {
+  it("meldet nach dem Anhaengen, nicht davor, und der Abbau beendet die Meldungen", async () => {
+    const { sink, written } = fakeSink();
+    const store = new TraceStore(sink, ".obsidian/plugins/llm-lab", limits, () => "2026-08-22");
+    const gesehen: number[] = [];
+    const ab = store.onWritten(() => gesehen.push(written.length));
+    await store.writeNow(rec);
+    expect(gesehen).toEqual([1]); // beim Melden steht die Zeile schon auf der Platte
+    ab();
+    await store.writeNow({ ...rec, id: "t2" });
+    expect(gesehen).toEqual([1]);
+  });
+  it("ein werfender Lauscher bricht weder den Schreibvorgang noch die anderen Lauscher ab", async () => {
+    const { sink, written } = fakeSink();
+    const store = new TraceStore(sink, ".obsidian/plugins/llm-lab", limits, () => "2026-08-22");
+    let zweiter = 0;
+    store.onWritten(() => { throw new Error("kaputter Lauscher"); });
+    store.onWritten(() => { zweiter++; });
+    await store.writeNow(rec);
+    expect(written.length).toBe(1);
+    expect(zweiter).toBe(1);
+  });
+  it("ein gescheiterter Schreibvorgang meldet nichts", async () => {
+    const { sink } = fakeSink();
+    sink.append = async () => { throw new Error("Platte voll"); };
+    const store = new TraceStore(sink, ".obsidian/plugins/llm-lab", limits, () => "2026-08-22");
+    let n = 0;
+    store.onWritten(() => { n++; });
+    await store.writeNow(rec);
+    expect(n).toBe(0);
+  });
+});

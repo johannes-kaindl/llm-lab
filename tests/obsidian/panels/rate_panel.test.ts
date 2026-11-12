@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { RatePanel, type RatePanelHost } from "../../../src/obsidian/panels/rate_panel";
 import type { TraceRecord } from "../../../src/core/types";
 import type { TraceReader } from "../../../src/core/trace_reader";
@@ -207,5 +207,111 @@ describe("RatePanel — Fehlerrueckmeldung (Befund I4)", () => {
 
     expect(noticeLog).toEqual([]);
     expect((panel as unknown as { rows: TraceRecord[] }).rows).toEqual([]);
+  });
+});
+
+describe("RatePanel — hoert auf neue Eintraege (Task „3 von 4 Zeilen“, gemessen 2026-11-12)", () => {
+  // Das Panel nutzt window.setTimeout (Popout-Fenster); in der Node-Umgebung gibt es kein window, die gefaelschten Timer haengen an globalThis.
+  beforeEach(() => { vi.stubGlobal("window", globalThis); });
+  afterEach(() => { vi.unstubAllGlobals(); });
+
+  const zeilen = (container: ReturnType<typeof makeFakeEl>): number => {
+    let n = 0;
+    const rein = (el: { children?: unknown[] }): void => {
+      for (const k of el.children ?? []) {
+        if (String((k as { className?: string }).className ?? "").split(" ").includes("llm-lab-zeile")) n++;
+        rein(k as { children?: unknown[] });
+      }
+    };
+    rein(container as { children?: unknown[] });
+    return n;
+  };
+  const vier = [rec({ id: "A", ts: "2026-09-04T10:00:00.000Z" }), rec({ id: "B", ts: "2026-09-03T10:00:00.000Z" }), rec({ id: "C", ts: "2026-09-02T10:00:00.000Z" }), rec({ id: "D", ts: "2026-09-01T10:00:00.000Z" })];
+
+  it("eine Ansicht, die vor dem letzten Eintrag geoeffnet wurde, zeichnet nach der Meldung neu", async () => {
+    vi.useFakeTimers();
+    try {
+      let bestand = vier.slice(0, 3);
+      let melde: () => void = () => {};
+      const ab = vi.fn();
+      const host = buildHost({
+        reader: () => ({ all: async () => ({ rows: bestand, kaputt: 0 }) }) as unknown as TraceReader,
+        onTraceWritten: (cb) => { melde = cb; return ab; },
+      });
+      const container = makeFakeEl();
+      const panel = new RatePanel(host);
+      panel.mount(container);
+      panel.onShow();
+      await vi.advanceTimersByTimeAsync(0);
+      expect(zeilen(container)).toBe(3);
+      bestand = vier;
+      melde();
+      await vi.advanceTimersByTimeAsync(500);
+      expect(zeilen(container)).toBe(4);
+      panel.onHide();
+      expect(ab).toHaveBeenCalledTimes(1);
+    } finally { vi.useRealTimers(); }
+  });
+
+  it("eine Meldung ohne neuen Inhalt zeichnet nicht neu", async () => {
+    vi.useFakeTimers();
+    try {
+      let melde: () => void = () => {};
+      const host = buildHost({
+        reader: () => ({ all: async () => ({ rows: vier, kaputt: 0 }) }) as unknown as TraceReader,
+        onTraceWritten: (cb) => { melde = cb; return () => {}; },
+      });
+      const container = makeFakeEl();
+      const panel = new RatePanel(host);
+      panel.mount(container);
+      const fokus = vi.fn();
+      container.children[0].focus = fokus;
+      panel.onShow();
+      await vi.advanceTimersByTimeAsync(0);
+      const nachErstem = fokus.mock.calls.length; // onShow + render
+      melde();
+      await vi.advanceTimersByTimeAsync(500);
+      expect(fokus.mock.calls.length).toBe(nachErstem);
+    } finally { vi.useRealTimers(); }
+  });
+
+  it("mehrere Meldungen kurz hintereinander lesen die Datei einmal", async () => {
+    vi.useFakeTimers();
+    try {
+      let melde: () => void = () => {};
+      let gelesen = 0;
+      const host = buildHost({
+        reader: () => ({ all: async () => { gelesen++; return { rows: vier, kaputt: 0 }; } }) as unknown as TraceReader,
+        onTraceWritten: (cb) => { melde = cb; return () => {}; },
+      });
+      const panel = new RatePanel(host);
+      panel.mount(makeFakeEl());
+      panel.onShow();
+      await vi.advanceTimersByTimeAsync(0);
+      expect(gelesen).toBe(1);
+      for (let i = 0; i < 5; i++) melde();
+      await vi.advanceTimersByTimeAsync(500);
+      expect(gelesen).toBe(2);
+    } finally { vi.useRealTimers(); }
+  });
+
+  it("ein spaeter fertiger, aelterer Lesevorgang ueberschreibt den neueren nicht", async () => {
+    vi.useFakeTimers();
+    try {
+      const antworten: Array<(r: { rows: TraceRecord[]; kaputt: number }) => void> = [];
+      const host = buildHost({
+        reader: () => ({ all: () => new Promise((res) => { antworten.push(res as never); }) }) as unknown as TraceReader,
+      });
+      const container = makeFakeEl();
+      const panel = new RatePanel(host);
+      panel.mount(container);
+      panel.onShow(); // Lesevorgang 1
+      panel.onShow(); // Lesevorgang 2 (Hub ruft onShow mehrfach)
+      antworten[1]({ rows: vier, kaputt: 0 });
+      await vi.advanceTimersByTimeAsync(0);
+      antworten[0]({ rows: vier.slice(0, 2), kaputt: 0 }); // der aeltere kommt zuletzt
+      await vi.advanceTimersByTimeAsync(0);
+      expect(zeilen(container)).toBe(4);
+    } finally { vi.useRealTimers(); }
   });
 });

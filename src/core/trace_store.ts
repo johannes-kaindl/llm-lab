@@ -65,6 +65,24 @@ export class TraceStore {
     return this.tail;
   }
 
+  private readonly lauscher = new Set<() => void>();
+
+  /** Meldet jeden erfolgreich angehaengten Eintrag, NACH dem Schreiben (die Zeile steht dann auf der Platte).
+   *  Fuer Ansichten, die sonst nur beim Oeffnen lesen und einen waehrenddessen eintreffenden Eintrag nie
+   *  sehen (gemessen 2026-11-12: Bewerten-Ansicht zeigte 3 von 4 Zeilen, solange sie vor dem letzten
+   *  Eintrag geoeffnet wurde). Gibt den Abbau zurueck. Ein werfender Lauscher stoert weder den Schreibvorgang
+   *  noch die anderen — Telemetrie darf nie zu Fall bringen, was sie beobachtet. */
+  onWritten(lauscher: () => void): () => void {
+    this.lauscher.add(lauscher);
+    return () => { this.lauscher.delete(lauscher); };
+  }
+
+  private meldeGeschrieben(): void {
+    for (const l of [...this.lauscher]) {
+      try { l(); } catch (e) { console.warn("LLM Lab: Lauscher des Trace-Stores gescheitert", e); }
+    }
+  }
+
   /** Fire-and-forget. Der Rueckgabetyp ist `void`, nicht `Promise<void>` — ein Aufrufer
    *  soll gar nicht erst in Versuchung kommen, darauf zu warten. */
   write(record: TraceRecord, opts?: WriteOptions): void {
@@ -90,6 +108,7 @@ export class TraceStore {
         const afterSecrets = redactKeysInValue(record, opts?.secrets ?? []);
         const safe = opts?.redactPii ? redactPii(afterSecrets, opts.piiTerms ?? []) : afterSecrets;
         await this.sink.append(`${this.dir()}/${this.today()}.jsonl`, JSON.stringify(safe) + "\n");
+        this.meldeGeschrieben();
         await this.rotateNow();
       } catch (e) {
         console.warn("LLM Lab: Trace konnte nicht geschrieben werden", e);

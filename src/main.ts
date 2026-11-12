@@ -109,6 +109,7 @@ export default class LlmLabPlugin extends Plugin {
       },
       remove: (trace: TraceRecord) =>
         this.store.removeRecord(TraceReader.dayOf(trace), trace.id),
+      onTraceWritten: (lauscher: () => void) => this.store.onWritten(lauscher),
     };
   }
 
