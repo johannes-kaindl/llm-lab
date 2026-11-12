@@ -200,24 +200,30 @@ async function seedRecords(cdp: Cdp, base: string): Promise<void> {
       })});
     `);
   }
-  // log() ist fire-and-forget (AGENTS.md „Anbieter, nicht Konsument") — die id kommt
-  // synchron, der Schreibvorgang laeuft danach asynchron. Ohne diese Wartestufe war das
-  // Oeffnen der Bewerten-Ansicht direkt danach im Volllauf beobachtbar (nicht isoliert)
-  // manchmal schneller als die vier Schreibvorgaenge auf der Platte — die Ansicht las
-  // dann eine noch unvollstaendige Trace-Datei und die Zeilenzahl blieb unter dem
-  // Erwartungswert, bis `rateTabBereit` seine Frist ausschoepfte.
-  await requireUntil(cdp, `(async () => {
+  // log() ist fire-and-forget (AGENTS.md „Anbieter, nicht Konsument“) — die id kommt synchron, der Schreibvorgang läuft danach asynchron. Hier wird gewartet, bis alle
+  // Zeilen auf der Platte stehen, sonst öffnet die Bewerten-Ansicht auf einen unvollständigen Bestand („3 von 4 Zeilen“, gemessen 2026-11-12: 7 von 16 Läufen ohne
+  // wirksames Warten, 0 von 24 mit). ⚠️ Nicht `requireUntil(cdp, "(async () => …)()", …)`: `requireUntil` wickelt in `Boolean(…)`, ein Promise ist immer wahr, der Ausdruck
+  // wartet dann nie. Die Schleife liest deshalb den Wert selbst.
+  const zeilenAufPlatte = `(async () => {
     const base = ${JSON.stringify(base)};
     const adapter = app.vault.adapter;
-    if (!(await adapter.exists(base + "/traces"))) return false;
+    if (!(await adapter.exists(base + "/traces"))) return 0;
     const liste = await adapter.list(base + "/traces");
     let zeilen = 0;
     for (const f of liste.files) {
       const inhalt = await adapter.read(f);
       zeilen += inhalt.split("\\n").filter((z) => z.trim().length > 0).length;
     }
-    return zeilen >= ${SEED_RECORDS.length};
-  })()`, "Die geseedeten Trace-Zeilen sind nicht auf der Platte gelandet", 8_000, 200);
+    return zeilen;
+  })()`;
+  const frist = Date.now() + 8_000;
+  let da = 0;
+  while (Date.now() < frist) {
+    da = await cdp.evaluate<number>(`return ${zeilenAufPlatte};`);
+    if (da >= SEED_RECORDS.length) break;
+    await new Promise((r) => setTimeout(r, 200));
+  }
+  if (da < SEED_RECORDS.length) throw new Error(`Die geseedeten Trace-Zeilen sind nicht auf der Platte gelandet (${da} von ${SEED_RECORDS.length} nach 8s)`);
 }
 
 /** Rate-Tab oeffnen (Ribbon-Aequivalent per Command) und auf die gefuellte Liste warten.
@@ -309,8 +315,9 @@ const SHOTS: Shot[] = [
     klasse: "hero",
     hoehe: HERO_HOEHE,
     async run(cdp, base) {
-      // Das Seeden verliert gelegentlich eine Zeile in der Ansicht („3 von 4“, gemessen 2026-10-26 in vier von acht Läufen, die Platte trägt alle vier): bis zu
-      // HERO_VERSUCHE Anläufe, jeder ab dem zweiten mit Rücksetzen, statt einen Lauf mit unvollständigem Bestand aufzunehmen.
+      // „3 von 4“ (gemessen 2026-10-26 in vier von acht Läufen) kam von der Wartestufe in `seedRecords`, die nie wartete (`requireUntil` mit asynchronem Ausdruck, 2026-11-12:
+      // 7 von 16 Läufen ohne wirksames Warten, 0 von 24 mit); die Ansicht hört seither außerdem auf neue Einträge. Die Anläufe bleiben als Netz: bis zu HERO_VERSUCHE,
+      // jeder ab dem zweiten mit Rücksetzen, statt einen Lauf mit unvollständigem Bestand aufzunehmen.
       let bereit = false;
       for (let versuch = 1; versuch <= HERO_VERSUCHE && !bereit; versuch++) {
         if (versuch > 1) await zustandZuruecksetzen(cdp, base);
