@@ -189,6 +189,7 @@ Das Plugin auszuschalten — oder zu entfernen — beendet die Aufzeichnung in d
 | Einstellung | Standard | Wirkung |
 |---|---|---|
 | **LLM-Aufrufe mitschreiben** | an | Hauptschalter. Aus wird kein Trace geschrieben, egal wer die API aufruft. |
+| **Statusleiste** | an | Zeigt „schreibt mit“ oder „pausiert“ in der Statusleiste. Ausschalten, wenn die Leiste zu breit wird; das Mitschreiben bleibt davon unberührt. |
 | **Traces aufbewahren (Tage)** | 7 | Ältere Trace-Dateien werden bei der Rotation gelöscht. Die heutige Datei nie. |
 | **Maximale Trace-Größe (MB)** | 20 | Überschreiten die aufbewahrten Dateien diese Grenze, werden die ältesten zuerst gelöscht — die heutige ist ausgenommen. |
 | **Diese Features nie mitschreiben** | `settings-probe` | Eine Feature-Kennung je Zeile. Der typische Fall sind die Verbindungstests eines aufrufenden Plugins — Verkehr, der keine echte Interaktion ist. |

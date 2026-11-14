@@ -6,6 +6,10 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- Settings: a "Status bar" switch (on by default). Turn it off if the status bar gets too wide. Existing installs keep the entry; nothing disappears after the update.
+
 ## [0.9.4] — 2026-11-12
 
 ### Fixed

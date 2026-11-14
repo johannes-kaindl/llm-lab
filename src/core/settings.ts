@@ -17,6 +17,8 @@ export interface LabSettings {
   /** true: ein einziger ausgeschlossener Pfad verhindert den Record (Default).
    *  false: nur wenn ALLE beteiligten Notizen ausgeschlossen sind. */
   strictFolderExclusion: boolean;
+  /** Eintrag in der Statusleiste (Standard an; UI-STANDARD § 8). */
+  showStatusBar: boolean;
 }
 
 export const DEFAULT_SETTINGS: LabSettings = {
@@ -28,7 +30,16 @@ export const DEFAULT_SETTINGS: LabSettings = {
   redactPiiInTrace: false,
   excludedFolders: [],
   strictFolderExclusion: true,
+  showStatusBar: true,
 };
+
+/** Die gespeicherten Daten als Settings: Defaults darunter, ein Schluessel, der in einer alten `data.json` fehlt, bekommt seinen Standard (die Statusleiste
+ *  startet an, ein gespeichertes `false` bleibt aus); `showStatusBar` gilt nur als Boolean. */
+export function loadLabSettings(raw: unknown): LabSettings {
+  const loaded = raw !== null && typeof raw === "object" ? (raw as Partial<LabSettings>) : {};
+  const merged = { ...DEFAULT_SETTINGS, ...loaded };
+  return { ...merged, showStatusBar: typeof loaded.showStatusBar === "boolean" ? loaded.showStatusBar : DEFAULT_SETTINGS.showStatusBar };
+}
 
 /** Entscheidet, ob die beteiligten Notizen einen Record verhindern.
  *

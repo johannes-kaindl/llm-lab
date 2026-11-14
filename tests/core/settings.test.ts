@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { DEFAULT_SETTINGS, pathsExcluded, shouldLog } from "../../src/core/settings";
+import { DEFAULT_SETTINGS, loadLabSettings, pathsExcluded, shouldLog } from "../../src/core/settings";
 
 describe("DEFAULT_SETTINGS", () => {
   it("schreibt ab Installation mit — sonst waere das Plugin nach der Installation stumm", () => {
@@ -137,5 +137,30 @@ describe("pathsExcluded", () => {
     // Weg, aus einem Tippfehler ein stummes Plugin zu machen.
     const s = mit({ excludedFolders: ["", "   "] });
     expect(pathsExcluded(["irgendwas.md"], s)).toBe(false);
+  });
+});
+
+describe("showStatusBar (UI-STANDARD § 8 Statusleisten-Eintrag)", () => {
+  it("Standard ist an", () => {
+    expect(DEFAULT_SETTINGS.showStatusBar).toBe(true);
+    expect(loadLabSettings(null).showStatusBar).toBe(true);
+    expect(loadLabSettings(undefined).showStatusBar).toBe(true);
+  });
+
+  it("eine alte data.json ohne den Schluessel startet mit an, ihre anderen Werte bleiben", () => {
+    const s = loadLabSettings({ enabled: false, keepDays: 3 });
+    expect(s.showStatusBar).toBe(true);
+    expect(s.enabled).toBe(false);
+    expect(s.keepDays).toBe(3);
+  });
+
+  it("ein gespeichertes aus bleibt aus, ein gespeichertes an bleibt an", () => {
+    expect(loadLabSettings({ showStatusBar: false }).showStatusBar).toBe(false);
+    expect(loadLabSettings({ showStatusBar: true }).showStatusBar).toBe(true);
+  });
+
+  it("ein Wert, der kein Boolean ist, faellt auf den Standard", () => {
+    expect(loadLabSettings({ showStatusBar: "nein" }).showStatusBar).toBe(true);
+    expect(loadLabSettings({ showStatusBar: null }).showStatusBar).toBe(true);
   });
 });

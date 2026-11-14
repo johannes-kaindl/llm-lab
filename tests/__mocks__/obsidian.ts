@@ -128,6 +128,16 @@ export class Setting {
   addText(_cb?: (c: unknown) => void): this { return this; }
   addTextArea(_cb?: (c: unknown) => void): this { return this; }
   addButton(_cb?: (c: unknown) => void): this { return this; }
+  _toggle?: ToggleComponent;
+  addToggle(cb?: (c: ToggleComponent) => void): this { this._toggle = new ToggleComponent(); cb?.(this._toggle); return this; }
+}
+
+/** Haelt Wert und Rueckruf, damit ein Test den Schalter bedienen kann. */
+export class ToggleComponent {
+  value = false;
+  onChangeCb: ((v: boolean) => unknown) | null = null;
+  setValue(v: boolean): this { this.value = v; return this; }
+  onChange(cb: (v: boolean) => unknown): this { this.onChangeCb = cb; return this; }
 }
 
 export class ButtonComponent {

@@ -1,6 +1,7 @@
 import { describe, it, expect, vi } from "vitest";
 import { LabSettingTab } from "../../src/obsidian/settings_tab";
 import { setLang, t } from "../../src/vendor/kit/i18n";
+import { Setting, type ToggleComponent } from "../__mocks__/obsidian";
 // Side-Effect-Import: registriert die echten EN/DE-Strings bei t().
 import "../../src/core/i18n/strings";
 
@@ -62,5 +63,22 @@ describe("LabSettingTab: Hilfe-Zeile", () => {
     expect(first.name).toBe("Hilfe");
     expect(t("help.openDocs")).toBe("Dokumentation öffnen");
     setLang("en");
+  });
+});
+
+describe("LabSettingTab: Statusleiste", () => {
+  it("bietet die Zeile Statusleiste mit einem Schalter, der den gespeicherten Wert zeigt und den Eintrag umschaltet", async () => {
+    setLang("en");
+    const calls: boolean[] = [];
+    const plugin = { settings: { showStatusBar: true }, setStatusBarVisible: async (on: boolean) => { calls.push(on); } } as never;
+    const defs = new LabSettingTab({} as never, plugin).getSettingDefinitions() as Def[];
+    const zeile = defs.find((d) => d.name === "Status bar");
+    expect(zeile).toBeDefined();
+    const setting = new Setting({});
+    zeile!.render?.(setting);
+    const toggle = (setting as unknown as { _toggle?: ToggleComponent })._toggle;
+    expect(toggle?.value).toBe(true);
+    await toggle?.onChangeCb?.(false);
+    expect(calls).toEqual([false]);
   });
 });

@@ -1,10 +1,11 @@
 import { Plugin, WorkspaceLeaf, getLanguage, setIcon } from "obsidian";
 import { pickLang, setLang, t } from "./vendor/kit/i18n";
 import "./core/i18n/strings";
-import { DEFAULT_SETTINGS, type LabSettings } from "./core/settings";
+import { DEFAULT_SETTINGS, loadLabSettings, type LabSettings } from "./core/settings";
 import { TraceStore } from "./core/trace_store";
 import { createLlmLabApi, type LlmLabApi } from "./plugin_api";
 import { vaultSink } from "./obsidian/vault_sink";
+import { createStatusBarItem, statusBarEnabled, type StatusBarItemHandle } from "./vendor/kit-obsidian/status-bar-item";
 import { LabSettingTab } from "./obsidian/settings_tab";
 import { LabView, VIEW_TYPE_LAB } from "./obsidian/lab_view";
 import { RatePanel, type RatePanelHost } from "./obsidian/panels/rate_panel";
@@ -20,15 +21,14 @@ export default class LlmLabPlugin extends Plugin {
   /** Sitzungszustand, bewusst nicht persistiert: eine Pause soll beim naechsten Start
    *  von selbst enden, damit niemand wochenlang stumm mitlaeuft, ohne es zu merken. */
   private paused = false;
-  private statusEl?: HTMLElement;
+  private statusItem!: StatusBarItemHandle;
   private store!: TraceStore;
   private dataset!: DatasetStore;
   private reader!: TraceReader;
 
   async onload(): Promise<void> {
     setLang(pickLang(getLanguage()));
-    const loaded = (await this.loadData()) as Partial<LabSettings> | null;
-    this.settings = { ...DEFAULT_SETTINGS, ...loaded };
+    this.settings = loadLabSettings(await this.loadData());
 
     const base = this.manifest.dir ?? `${this.app.vault.configDir}/plugins/${this.manifest.id}`;
     const sink = vaultSink(this.app.vault.adapter);
@@ -59,8 +59,11 @@ export default class LlmLabPlugin extends Plugin {
       newId: () => `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`,
     });
 
-    this.statusEl = this.addStatusBarItem();
-    this.renderStatus();
+    this.statusItem = createStatusBarItem({
+      plugin: this,
+      visible: statusBarEnabled(this.settings.showStatusBar),
+      render: (el) => { this.paintStatus(el); },
+    });
 
     this.addCommand({
       id: "toggle-pause",
@@ -122,13 +125,23 @@ export default class LlmLabPlugin extends Plugin {
 
   /** Zustand nie nur ueber Farbe: Icon UND Text (WCAG 1.4.1). */
   private renderStatus(): void {
-    if (!this.statusEl) return;
-    this.statusEl.empty();
-    const icon = this.statusEl.createSpan();
+    this.statusItem.refresh();
+  }
+
+  private paintStatus(el: HTMLElement): void {
+    el.empty();
+    const icon = el.createSpan();
     setIcon(icon, this.paused ? "pause-circle" : "circle-dot");
-    this.statusEl.createSpan({
+    el.createSpan({
       text: " " + t(this.paused ? "status.paused" : "status.recording"),
     });
+  }
+
+  /** Schalter „Statusleiste“ aus den Einstellungen: haengt den Eintrag ab oder legt ihn neu an (am Ende der Leiste) und speichert. */
+  async setStatusBarVisible(on: boolean): Promise<void> {
+    this.settings.showStatusBar = on;
+    this.statusItem.setVisible(on);
+    await this.saveSettings();
   }
 
   /** Im HAUPTBEREICH, nicht in der Seitenleiste: bewerten heisst System-Prompt und

@@ -181,6 +181,7 @@ Turning the plugin off — or removing it — stops all recording for that vault
 | Setting | Default | Effect |
 |---|---|---|
 | **Record LLM calls** | on | Master switch. Off means no trace is ever written, regardless of what calls the API. |
+| **Status bar** | on | Shows the recording or paused state in the status bar. Turn it off if the bar gets too wide; recording is not affected. |
 | **Keep traces for (days)** | 7 | Trace files older than this are deleted on rotation. Today's file is never deleted. |
 | **Maximum trace size (MB)** | 20 | Once the kept trace files exceed this, the oldest are deleted first — today's file is exempt. |
 | **Never record these features** | `settings-probe` | One feature key per line. A calling plugin's own connectivity probes are the typical entry — traffic that is not a real interaction. |

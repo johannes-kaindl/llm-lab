@@ -42,7 +42,11 @@
         "folder-suggest",
         "help-setting",
         "hub",
-        "settings_walker"
+        "settings_walker",
+        {
+          "name": "status-bar-item",
+          "ref": "0.88.0"
+        }
       ]
     }
   ]

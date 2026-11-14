@@ -1,10 +1,11 @@
 import { App, PluginSettingTab, type SettingDefinitionItem } from "obsidian";
-import { t } from "../vendor/kit/i18n";
+import { getLang, t } from "../vendor/kit/i18n";
 import {
   renderSettingDefinitions,
   type SettingControlHost,
 } from "../vendor/kit-obsidian/settings_walker";
 import { githubHelpUrls, helpSettingDefinition } from "../vendor/kit-obsidian/help-setting";
+import { statusBarEnabled, statusBarSettingDefinition } from "../vendor/kit-obsidian/status-bar-item";
 import type { LabSettings } from "../core/settings";
 import type LlmLabPlugin from "../main";
 
@@ -128,6 +129,11 @@ export class LabSettingTab extends PluginSettingTab implements SettingControlHos
         desc: t("settings.enabled.desc"),
         control: { type: "toggle", key: "enabled" },
       },
+      statusBarSettingDefinition({
+        value: statusBarEnabled(this.plugin.settings.showStatusBar),
+        strings: { lang: getLang() },
+        onChange: (v) => this.plugin.setStatusBarVisible(v),
+      }),
       {
         name: t("settings.keepDays.name"),
         control: { type: "number", key: "keepDays", validate: positive },
