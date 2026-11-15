@@ -176,7 +176,7 @@ Turning the plugin off — or removing it — stops all recording for that vault
 
 ## Configuration
 
-<img src="https://raw.githubusercontent.com/johannes-kaindl/llm-lab/main/docs/images/settings.png" width="820" alt="The full LLM Lab settings tab: Record LLM calls, Keep traces for, Maximum trace size, Never record these features, Never record notes from these folders, Strict folder exclusion, Mask personal data in raw traces too, Additional terms to mask, and the three binding hint lines Where the data is stored, What masking does and does not catch, What the folder filter can and cannot see">
+<img src="https://raw.githubusercontent.com/johannes-kaindl/llm-lab/main/docs/images/settings.png" width="820" alt="The full LLM Lab settings tab: Record LLM calls, Status bar, Keep traces for, Maximum trace size, Never record these features, Never record notes from these folders, Strict folder exclusion, Mask personal data in raw traces too, Additional terms to mask, and the three binding hint lines Where the data is stored, What masking does and does not catch, What the folder filter can and cannot see">
 
 | Setting | Default | Effect |
 |---|---|---|

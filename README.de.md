@@ -184,7 +184,7 @@ Das Plugin auszuschalten — oder zu entfernen — beendet die Aufzeichnung in d
 
 ## Konfiguration
 
-<img src="https://raw.githubusercontent.com/johannes-kaindl/llm-lab/main/docs/images/settings.png" width="820" alt="Der vollständige LLM-Lab-Einstellungen-Tab: LLM-Aufrufe mitschreiben, Traces aufbewahren, Maximale Trace-Größe, Diese Features nie mitschreiben, Notizen aus diesen Ordnern nie mitschreiben, Strenger Ordner-Ausschluss, Personenbezogenes auch im rohen Trace maskieren, Zusätzliche Begriffe maskieren, sowie die drei inhaltlich verbindlichen Hinweiszeilen Where the data is stored, What masking does and does not catch, What the folder filter can and cannot see">
+<img src="https://raw.githubusercontent.com/johannes-kaindl/llm-lab/main/docs/images/settings.png" width="820" alt="Der vollständige LLM-Lab-Einstellungen-Tab: LLM-Aufrufe mitschreiben, Statusleiste, Traces aufbewahren, Maximale Trace-Größe, Diese Features nie mitschreiben, Notizen aus diesen Ordnern nie mitschreiben, Strenger Ordner-Ausschluss, Personenbezogenes auch im rohen Trace maskieren, Zusätzliche Begriffe maskieren, sowie die drei inhaltlich verbindlichen Hinweiszeilen Where the data is stored, What masking does and does not catch, What the folder filter can and cannot see">
 
 | Einstellung | Standard | Wirkung |
 |---|---|---|
