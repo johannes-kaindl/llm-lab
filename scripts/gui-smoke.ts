@@ -23,19 +23,11 @@
  * Zweitinstanz mit eigenem Profil: Vertrauensdialog und Restricted Mode eines frischen Profils erledigt
  * `bereiteInstanzVor` (Bruecke) vor dem ersten Punkt.
  *
- * ```bash
- * echo "$STAGING_VAULTS_DIR"                                     # muss gesetzt sein (~/.zshenv)
- * UD=/tmp/obs-test-llm-lab; mkdir -p "$UD"
- * lsof -nP -iTCP:9397 -sTCP:LISTEN && echo "Port belegt — anderen nehmen"
- * pgrep -f "user-data-dir=$UD" && echo "Profil belegt — $UD-w19 nehmen, nie beenden"
- * cp ~/Library/Application\ Support/obsidian/obsidian-*.asar "$UD"/   # aktuelle Version statt gebuendelter
- * node -e 'const p=process.env.STAGING_VAULTS_DIR+"/llm-lab";require("fs").writeFileSync(process.argv[1]+"/obsidian.json",JSON.stringify({vaults:{"llm-lab":{path:p,ts:Date.now(),open:true}},language:"en"}))' "$UD"
- * npm run build && npm run smoke:gui -- --setup                  # Vault aus dem Fixture bauen
- * /Applications/Obsidian.app/Contents/MacOS/Obsidian --user-data-dir="$UD" --remote-debugging-port=9397 &   # je Messlauf ein frischer Prozess; PID merken
- * python3 ~/.claude/hooks/obsidian-cdp-lock.py acquire --label llm-lab --intent "GUI-Smoke :9397" --exclusive focus --port 9397 --ttl 300
- * npm run smoke:gui -- --port 9397 --vault llm-lab
- * python3 ~/.claude/hooks/obsidian-cdp-lock.py release           # und nur die eigene PID beenden
- * ```
+ * Lauf: `tools/obsidian-cdp/messlauf.sh` (Dach, README § Messlauf in einem Aufruf) startet die Zweitinstanz, hält den Lock (`--exclusive focus`, davor, mit `export`)
+ * und räumt auf; das Rezept steht nur dort. Für diesen Treiber: `REPO=llm-lab PORT=9397 SMOKE_ARGS="--vault llm-lab"` (Port als Vorschlag, jeder freie geht).
+ *
+ * Besonderheiten dieses Treibers (aus dem früheren Rezept übernommen):
+ *   Setup (`--setup`): Vault aus dem Fixture bauen
  *
  * Der erste Lauf nach der Profilanlage ist ein Aufwaermlauf und zaehlt nicht.
  *
