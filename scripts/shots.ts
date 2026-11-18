@@ -508,7 +508,6 @@ async function main(): Promise<void> {
   console.log(`Verbunden auf Port ${port}.\n`);
   await cdp.mitschnitt((zeile) => console.log(`      » ${zeile}`));
 
-  await cdp.send("Page.bringToFront");
   await new Promise((r) => setTimeout(r, 2000));
 
   // Aufnahmesprache PRUEFEN, nicht setzen — sie ist app-weit und wirkt erst nach einem Neustart.
