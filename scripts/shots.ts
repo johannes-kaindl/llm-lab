@@ -52,6 +52,7 @@ import { argv, cwd, exit } from "node:process";
 
 import {
   attachTo,
+  bereiteInstanzVor,
   Cdp,
   closeExtraLeaves,
   openExisting,
@@ -509,6 +510,11 @@ async function main(): Promise<void> {
   await cdp.mitschnitt((zeile) => console.log(`      » ${zeile}`));
 
   await new Promise((r) => setTimeout(r, 2000));
+
+  // Frisches Profil: Vertrauensdialog bestätigen, Restricted Mode aufheben, Plugin laden, Aufnahmesprache setzen. Ohne den Aufruf zeigt jedes Bild
+  // den Vertrauensdialog, und das Plugin fehlt im Renderer (Brücke README § Frisches Profil vorbereiten).
+  const vor = await bereiteInstanzVor(cdp, { pluginIds: [PLUGIN_ID], nurVault: REPO_NAME, sprache: "en" });
+  console.log(`Instanz: ${vor.hinweis}`);
 
   // Aufnahmesprache PRUEFEN, nicht setzen — sie ist app-weit und wirkt erst nach einem Neustart.
   const lang = await cdp.evaluate<string>(`return document.documentElement.lang || "";`);
