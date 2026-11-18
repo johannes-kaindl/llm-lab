@@ -6,6 +6,10 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Changed
+
+- **Two commands drop the plugin name from their names (UI-STANDARD §11).** The palette shows "LLM Lab: Open recordings" (was "Open LLM Lab") and "LLM Lab: Pause or resume recording" (was "LLM Lab: pause or resume recording", which showed the plugin name twice); German: "Aufzeichnungen öffnen" and "Mitschreiben pausieren oder fortsetzen". The ribbon tooltip of the flask icon now reads "Open recordings". The command ids stay, so bound hotkeys keep working.
+
 ## [0.10.0] — 2026-11-14
 
 ### Added

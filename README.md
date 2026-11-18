@@ -147,14 +147,14 @@ enable the plugin under **Settings → Community plugins**.
 
 Recording itself needs nothing to start and nothing to click. Once a sibling plugin calls the
 API, recording happens on its own. To review and rate what was recorded, open the **LLM Lab**
-tab (ribbon icon, or the "Open LLM Lab" command) — it lists calls sorted newest first, shows the
+tab (ribbon icon, or the "Open recordings" command) — it lists calls sorted newest first, shows the
 full prompt/response for the selected one, and is keyboard-driven: `j`/`k` move the selection,
 `g`/`b` rate the current call good/poor, `Enter` opens tags/note/correction, `Delete` removes the
 recording. Beyond that view, the only three things you ever do with LLM Lab are these:
 
 - **Check the status bar.** It shows a dot icon and *"Lab: recording"*, or a pause icon and
   *"Lab: paused"*. Icon **and** text, never colour alone.
-- **Pause for this session.** Command palette → **"LLM Lab: pause or resume recording"**. The
+- **Pause for this session.** Command palette → **"LLM Lab: Pause or resume recording"**. The
   pause is deliberately not persisted: it ends at the next restart, so nobody stays silently
   paused for weeks after a *"not right now."*
 - **Read the traces.** They are plain JSONL in
@@ -192,7 +192,7 @@ Turning the plugin off — or removing it — stops all recording for that vault
 
 Below the settings, three read-only lines state where the data is stored and what masking and the folder filter can and cannot see.
 
-A status-bar item and the **"LLM Lab: pause or resume recording"** command let you pause and resume for
+A status-bar item and the **"LLM Lab: Pause or resume recording"** command let you pause and resume for
 the current session without touching settings — the pause is intentionally not persisted, so
 nobody stays silently paused for weeks after a "not right now."
 

@@ -154,7 +154,7 @@ und das Plugin unter **Einstellungen → Community-Plugins** aktivieren.
 
 Die Aufzeichnung selbst braucht nichts zu starten und nichts zu klicken. Sobald ein
 Nachbarplugin die API aufruft, läuft sie von selbst. Zum Sichten und Bewerten öffnest du den
-Tab **LLM Lab** (Ribbon-Icon oder der Befehl „LLM Lab öffnen") — er listet die Aufrufe neueste
+Tab **LLM Lab** (Ribbon-Icon oder der Befehl „Aufzeichnungen öffnen") — er listet die Aufrufe neueste
 zuerst, zeigt zum ausgewählten den vollständigen Prompt samt Antwort und ist tastaturbedienbar:
 `j`/`k` bewegen die Auswahl, `g`/`b` bewerten den aktuellen Aufruf gut/schlecht, `Enter` öffnet
 Tags/Notiz/Korrektur, `Entf` löscht die Aufzeichnung. Darüber hinaus sind die einzigen drei

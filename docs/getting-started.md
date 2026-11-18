@@ -8,9 +8,9 @@ Follow one of the [install routes in the README](https://github.com/johannes-kai
 
 ## 2. Check that it is recording
 
-Look at the status bar. It reads **Lab: recording** with a dot icon. **Lab: paused** with a pause icon means recording is off for this session; run the command **LLM Lab: pause or resume recording** to switch it back.
+Look at the status bar. It reads **Lab: recording** with a dot icon. **Lab: paused** with a pause icon means recording is off for this session; run the command **LLM Lab: Pause or resume recording** to switch it back.
 
-Click the flask icon in the ribbon, or run **Open LLM Lab**. The **Rate** tab opens and says:
+Click the flask icon in the ribbon, or run **LLM Lab: Open recordings**. The **Rate** tab opens and says:
 
 > No recordings yet. LLM Lab only records what another plugin sends it — nothing has arrived so far.
 

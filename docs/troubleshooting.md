@@ -14,7 +14,7 @@ Each entry starts with what you see — the wording is the plugin's own English 
 
 > Lab: paused
 
-**Cause:** you ran **LLM Lab: pause or resume recording**. The pause is deliberately not saved and ends at the next restart of Obsidian.
+**Cause:** you ran **LLM Lab: Pause or resume recording**. The pause is deliberately not saved and ends at the next restart of Obsidian.
 
 **Fix:** run the same command again; the status bar returns to **Lab: recording**. If it says recording and still nothing arrives, check **Record LLM calls** under **Settings → LLM Lab** — when that is off, nothing is written at all.
 
