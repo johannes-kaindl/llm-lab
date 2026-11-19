@@ -1,7 +1,7 @@
 {
   "source": "code-kit",
-  "version": "0.73.0",
-  "sha": "09b7dcb",
+  "version": "0.82.0",
+  "sha": "4e12a8e",
   "vendored": "folder-scope.ts, fold-case.ts, i18n.ts, redact.ts, rel-path.ts, split-list.ts",
   "license": "AGPL-3.0-or-later"
 }
