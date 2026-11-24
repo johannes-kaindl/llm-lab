@@ -6,6 +6,8 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.10.1] — 2026-11-24
+
 ### Fixed
 
 - **A key or token pasted into a prompt is now blanked in the recording when "mask personal data" is on.** `sk-proj-…`, `AKIA…`, `Bearer …` and private-key blocks, also glued to a word or underscore (`key_sk-…`), became `[redacted-token]` in the prompt, the answer, the reasoning and the error text; before, only the tokens you had configured were found and a pasted key went into the recording (and into an exported dataset) in clear text.
