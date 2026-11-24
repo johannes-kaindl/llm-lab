@@ -6,12 +6,15 @@
  *  (`createPiiRedactor`; urspruenglich diese Datei). Hier bleibt, was einen plugin-eigenen Typ
  *  traegt: welche Felder eines TraceRecord Text sind.
  *
+ *  Vor den PII-Mustern laufen die Geheimnis-Regeln des Kits (`SECRET_REDACT_RULES`): ein Schluessel,
+ *  den jemand in einen Prompt eingefuegt hat, steht in keiner Token-Liste und bliebe sonst im Klartext.
+ *
  *  Laeuft NUR ueber die text-tragenden Felder (messages[].content, response.content,
  *  response.reasoning, error) — nie ueber den gesamten serialisierten Record. Metadaten wie `ts`,
  *  `latencyMs`, `model` oder `endpointHost` sind Zifferngruppen bzw. Bezeichner, die das
  *  PHONE-Muster faelschlich traefe und dabei den Record unbemerkt beschaedigen wuerde. */
 
-import { createPiiRedactor as createKitPiiRedactor } from "../vendor/kit/redact";
+import { createPiiRedactor as createKitPiiRedactor, redactText } from "../vendor/kit/redact";
 import type { TraceRecord } from "./types";
 
 export interface PiiRedactor {
@@ -25,7 +28,10 @@ export interface PiiRedactor {
 /** Ein Redaktor mit EINEM Platzhalter-Zaehler ueber alles, was durch ihn laeuft. */
 export function createPiiRedactor(extra: string[]): PiiRedactor {
   const kit = createKitPiiRedactor({ extra });
-  const redact = (t: string): string => kit.text(t);
+  // Erst die Muster-Geheimnisse des Kits (Schluessel, Tokens, Bearer, PEM; sie stehen in keiner
+  // Token-Liste), dann die PII-Muster mit ihrer record-weiten Nummerierung. Die Reihenfolge ist
+  // gleichgueltig fuer die Nummern: die Geheimnis-Platzhalter tragen keine.
+  const redact = (t: string): string => kit.text(redactText(t).text);
   return {
     text: redact,
     record: (record) => ({

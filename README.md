@@ -71,6 +71,7 @@ catches:
 - IBANs
 - phone numbers
 - credentials embedded in a URL (`user:pass@host`)
+- keys and tokens (`sk-…`, `AKIA…`, `Bearer …`, private-key blocks), also glued to a word or underscore (`key_sk-…`), as `[redacted-token]`
 
 and replaces each with a numbered placeholder (`[EMAIL_1]`, `[IBAN_1]`, …) that stays
 consistent across every text field of one record — the same address gets the same number in

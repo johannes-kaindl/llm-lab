@@ -74,6 +74,7 @@ Konkret erkennt sie:
 - IBANs
 - Telefonnummern
 - Zugangsdaten in einer URL (`user:pass@host`)
+- Schlüssel und Tokens (`sk-…`, `AKIA…`, `Bearer …`, Blöcke privater Schlüssel), auch direkt hinter einem Wort oder Unterstrich (`key_sk-…`), als `[redacted-token]`
 
 und ersetzt jedes durch einen nummerierten Platzhalter (`[EMAIL_1]`, `[IBAN_1]`, …), der über
 alle Textfelder **eines** Records hinweg gleich bleibt — dieselbe Adresse bekommt im Prompt

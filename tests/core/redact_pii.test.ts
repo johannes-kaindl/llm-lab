@@ -131,6 +131,39 @@ describe("redactPii", () => {
   });
 });
 
+describe("redactPii: Muster-Geheimnisse (Welle 37)", () => {
+  // Ein Schluessel, den eine Nutzerin in den Prompt eingefuegt hat, steht in keiner Token-Liste
+  // (`opts.secrets`): nur die Muster des Kits finden ihn, auch hinter Wortzeichen.
+  const KEY = "sk-proj-abc123def456ghi789";
+  const AKIA = "AKIAABCDEFGHIJKLMNOP";
+  const BEARER = "Bearer abcdef0123456789";
+
+  it("schwaerzt ein Muster-Geheimnis in Prompt, Antwort, Denkspur und Fehler", () => {
+    const rec = makeRecord({
+      messages: [{ role: "user", content: `key_${KEY} und my_${AKIA} und x_${BEARER}` }],
+      response: { content: `Eingegeben: ${KEY}`, reasoning: `Der Schluessel ${AKIA} wirkt echt` },
+      error: `401 bei ${BEARER}`,
+    });
+    const out = redactPii(rec, []);
+    const all = JSON.stringify(out);
+    expect(all).not.toContain("abc123def456ghi789");
+    expect(all).not.toContain("ABCDEFGHIJKLMNOP");
+    expect(all).not.toContain("abcdef0123456789");
+    expect(out.messages[0]?.content).toContain("[redacted-token]");
+  });
+
+  it("schwaerzt das Geheimnis auch im Text, der nicht Teil des Records ist (Korrekturtext)", () => {
+    const out = createPiiRedactor([]).text(`Notiz: key_${KEY}`);
+    expect(out).not.toContain("abc123def456ghi789");
+  });
+
+  it("laesst gewoehnlichen Text und die E-Mail-Nummerierung unberuehrt", () => {
+    const rec = makeRecord({ messages: [{ role: "user", content: "task-abc123def456ghi789 an a@b.de" }] });
+    const out = redactPii(rec, []);
+    expect(out.messages[0]?.content).toBe("task-abc123def456ghi789 an [EMAIL_1]");
+  });
+});
+
 describe("createPiiRedactor", () => {
   it("gibt derselben Adresse in Record UND Korrekturtext denselben Platzhalter", () => {
     const r = createPiiRedactor([]);

@@ -6,6 +6,10 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Fixed
+
+- **A key or token pasted into a prompt is now blanked in the recording when "mask personal data" is on.** `sk-proj-…`, `AKIA…`, `Bearer …` and private-key blocks, also glued to a word or underscore (`key_sk-…`), became `[redacted-token]` in the prompt, the answer, the reasoning and the error text; before, only the tokens you had configured were found and a pasted key went into the recording (and into an exported dataset) in clear text.
+
 ### Changed
 
 - **Two commands drop the plugin name from their names (UI-STANDARD §11).** The palette shows "LLM Lab: Open recordings" (was "Open LLM Lab") and "LLM Lab: Pause or resume recording" (was "LLM Lab: pause or resume recording", which showed the plugin name twice); German: "Aufzeichnungen öffnen" and "Mitschreiben pausieren oder fortsetzen". The ribbon tooltip of the flask icon now reads "Open recordings". The command ids stay, so bound hotkeys keep working.
