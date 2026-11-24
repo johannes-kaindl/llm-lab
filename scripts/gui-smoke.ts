@@ -68,6 +68,7 @@ import { join } from "node:path";
 
 import { Cdp, attachTo, beimAbbruch, bereiteInstanzVor, istAbgebrochen, ladePluginNeu, pollUntil, releaseAlwaysOnTop, requireVisible, schliesseEinstellungen } from "../../tools/obsidian-cdp/cdp.js";
 import { createBilanz, parseArgs, runDriver } from "../../tools/obsidian-cdp/bilanz.js";
+import { ZERSTOEREND_SELEKTOR } from "../../tools/obsidian-cdp/knoepfe.js";
 import { buildVault, requireEigenerBuild, stagingVaultDir } from "../../tools/obsidian-cdp/vault.js";
 // Befund I5: die apiVersion war dreimal veraltet, weil der Treiber sie als eigene Zahl
 // mitfuehrte. Ein Lesezugriff auf die Quelle statt einer Kopie schliesst die Luecke
@@ -990,12 +991,8 @@ async function main(): Promise<void> {
     await cdp.evaluate(`app.commands.executeCommandById(${JSON.stringify(PLUGIN_ID + ":delete-record")}); return true;`);
     // Loeschen laeuft ueber confirmAction() (Bestaetigungs-Modal, UI-STANDARD verbindlich) —
     // der destruktive Knopf im modal-button-container wird angeklickt, nicht die Taste.
-    // ⚠️ Zwei Klassen, nicht eine (UI-STANDARD §7): applyDestructive() ruft ab Obsidian 1.13
-    // setDestructive() und schreibt "mod-destructive", darunter faellt es auf "mod-warning"
-    // zurueck. Ein Selektor, der nur eine der beiden sucht, ist auf einer aktuellen
-    // Obsidian-Version dauerhaft rot bei intaktem Code — gemessen genau hier (1.14.2 schreibt
-    // mod-destructive, der urspruengliche Selektor suchte nur .mod-warning).
-    const DESTRUCTIVE_SEL = ".modal-button-container .mod-warning, .modal-button-container .mod-destructive";
+    // Zwei Klassen, nicht eine (UI-STANDARD §7): die Menge steht zentral in tools/obsidian-cdp/knoepfe.ts.
+    const DESTRUCTIVE_SEL = `.modal-button-container :is(${ZERSTOEREND_SELEKTOR})`;
     await pollUntil<boolean>(cdp, `
       return document.querySelector(${JSON.stringify(DESTRUCTIVE_SEL)}) ? true : null;
     `, 5000, 200);
